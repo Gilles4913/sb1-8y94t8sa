@@ -20,6 +20,7 @@ export type Database = {
           email_signature_html: string;
           rgpd_content_md: string;
           cgu_content_md: string;
+          privacy_content_md: string;
         };
         Insert: {
           id?: string;
@@ -39,6 +40,7 @@ export type Database = {
           email_signature_html?: string;
           rgpd_content_md?: string;
           cgu_content_md?: string;
+          privacy_content_md?: string;
         };
         Update: {
           id?: string;
@@ -58,6 +60,7 @@ export type Database = {
           email_signature_html?: string;
           rgpd_content_md?: string;
           cgu_content_md?: string;
+          privacy_content_md?: string;
         };
       };
       app_users: {

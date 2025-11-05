@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Target, Users, Plus, TrendingUp, Mail, Search, CheckCircle, XCircle } from 'lucide-react';
+import { Building2, Target, Users, Plus, TrendingUp, Mail, Search, CheckCircle, XCircle, Database as DatabaseIcon, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -243,12 +243,35 @@ export function SuperAdminDashboard() {
             </p>
           </div>
           <div className="flex gap-3">
+            {profile?.role === 'super_admin' && (
+              <button
+                onClick={() => window.location.href = '/admin/clubs'}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition"
+              >
+                <Building2 className="w-4 h-4" />
+                <span className="font-medium">Clubs (admin)</span>
+              </button>
+            )}
             <button
-              onClick={() => window.location.href = '/email-templates'}
+              onClick={() => window.location.href = '/auth-test'}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg transition"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span className="font-medium">Auth Test</span>
+            </button>
+            <button
+              onClick={() => window.location.href = '/db-diagnostics'}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg transition"
+            >
+              <DatabaseIcon className="w-4 h-4" />
+              <span className="font-medium">DB Diagnostics</span>
+            </button>
+            <button
+              onClick={() => window.location.href = '/emails/templates'}
               className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg transition"
             >
               <Mail className="w-4 h-4" />
-              <span className="font-medium">Templates Emails</span>
+              <span className="font-medium">Templates E-mails</span>
             </button>
             <button
               onClick={() => setShowCreateTenant(true)}

@@ -1,18 +1,22 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Mail, Edit2, Copy, Trash2, Plus, Upload, Download, FileUp, X, History } from 'lucide-react';
+import { Mail, Edit2, Copy, Trash2, Plus, Upload, Download, FileUp, X, History, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../contexts/ToastContext';
+import { useAsTenant } from '../hooks/useAsTenant';
 import { Layout } from './Layout';
 import { GlobalTemplateEditorModal, TemplateFormData } from './GlobalTemplateEditorModal';
 import { PushTemplatesModal } from './PushTemplatesModal';
 import { TemplateVersionsModal } from './TemplateVersionsModal';
+import { saveEmailTemplate, pick, SaveResult } from '../services/emailTemplates';
 
 interface EmailTemplate {
   id: string;
   tenant_id: string | null;
   type: string;
+  key?: string;
   subject: string;
   html_body: string;
+  html?: string;
   text_body: string;
   placeholders: string[];
   is_active: boolean;
@@ -24,10 +28,12 @@ const ITEMS_PER_PAGE = 20;
 
 export function SuperAdminGlobalEmailTemplates() {
   const toast = useToast();
+  const { effectiveTenantId } = useAsTenant();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [saveError, setSaveError] = useState<SaveResult | null>(null);
   const [editorModal, setEditorModal] = useState<{
     isOpen: boolean;
     mode: 'create' | 'edit';
@@ -77,22 +83,50 @@ export function SuperAdminGlobalEmailTemplates() {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Try Mode A (key, html, text_body)
+      const { data: modeAData, error: modeAError } = await supabase
         .from('email_templates')
         .select('*')
         .is('tenant_id', null)
-        .order('type');
+        .order('key');
 
-      if (error) throw error;
+      if (modeAError) {
+        const errorMsg = modeAError.message || '';
+        if (errorMsg.includes('column') && errorMsg.includes('does not exist')) {
+          // Fallback to Mode B (type, html_body)
+          const { data: modeBData, error: modeBError } = await supabase
+            .from('email_templates')
+            .select('*')
+            .is('tenant_id', null)
+            .order('type');
 
-      setTemplates(
-        (data || []).map((t) => ({
-          ...t,
-          placeholders: Array.isArray(t.placeholders)
-            ? t.placeholders
-            : JSON.parse(t.placeholders || '[]'),
-        }))
-      );
+          if (modeBError) throw modeBError;
+
+          setTemplates(
+            (modeBData || []).map((t) => ({
+              ...t,
+              key: t.type,
+              html: t.html_body,
+              placeholders: Array.isArray(t.placeholders)
+                ? t.placeholders
+                : JSON.parse(t.placeholders || '[]'),
+            }))
+          );
+        } else {
+          throw modeAError;
+        }
+      } else {
+        setTemplates(
+          (modeAData || []).map((t) => ({
+            ...t,
+            type: t.key,
+            html_body: t.html,
+            placeholders: Array.isArray(t.placeholders)
+              ? t.placeholders
+              : JSON.parse(t.placeholders || '[]'),
+          }))
+        );
+      }
     } catch (error) {
       console.error('Error fetching templates:', error);
       toast.error('Erreur lors du chargement des templates');
@@ -146,42 +180,48 @@ export function SuperAdminGlobalEmailTemplates() {
     setEditorModal({ isOpen: false, mode: 'create' });
   };
 
+  const htmlToText = (html: string): string => {
+    return html
+      .replace(/<style[^>]*>.*?<\/style>/gi, '')
+      .replace(/<script[^>]*>.*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
   const handleSaveTemplate = async (formData: TemplateFormData) => {
+    setSaveError(null);
+
     try {
-      if (editorModal.mode === 'create') {
-        const { error } = await supabase.from('email_templates').insert({
-          tenant_id: null,
-          type: formData.type,
-          subject: formData.subject,
-          html_body: formData.html_body,
-          text_body: formData.html_body,
-          is_active: formData.is_active,
-          placeholders: [],
-        });
+      // Mode CREATE uniquement (le modal gère directement les updates)
+      const textBody = htmlToText(formData.html_body);
+      const tenantId = effectiveTenantId || null;
 
-        if (error) throw error;
-        toast.success('Template créé avec succès');
-      } else if (editorModal.mode === 'edit' && editorModal.templateId) {
-        const { error } = await supabase
-          .from('email_templates')
-          .update({
-            type: formData.type,
-            subject: formData.subject,
-            html_body: formData.html_body,
-            text_body: formData.html_body,
-            is_active: formData.is_active,
-          })
-          .eq('id', editorModal.templateId);
+      const result = await saveEmailTemplate({
+        tenant_id: tenantId,
+        key: formData.type,
+        subject: formData.subject,
+        html: formData.html_body,
+        text_body: textBody,
+      });
 
-        if (error) throw error;
-        toast.success('Template sauvegardé avec succès');
+      if (!result.ok) {
+        setSaveError(result);
+        throw new Error(result.message || 'Save failed');
       }
 
+      toast.success(`Modèle créé (mode ${result.mode})`);
       await fetchTemplates();
       handleCloseModal();
     } catch (error) {
       console.error('Error saving template:', error);
-      toast.error('Erreur lors de la sauvegarde');
+      if (!saveError) {
+        toast.error('Erreur lors de la sauvegarde');
+      }
       throw error;
     }
   };
@@ -189,7 +229,9 @@ export function SuperAdminGlobalEmailTemplates() {
   const handleDuplicate = async (template: EmailTemplate) => {
     try {
       const newType = `${template.type}_copy_${Date.now()}`;
-      const { error } = await supabase.from('email_templates').insert({
+
+      // Stop-list : filtrer les colonnes avant insert
+      const raw = {
         tenant_id: null,
         type: newType,
         subject: `${template.subject} (copie)`,
@@ -197,7 +239,12 @@ export function SuperAdminGlobalEmailTemplates() {
         text_body: template.text_body,
         is_active: false,
         placeholders: template.placeholders,
-      });
+      };
+
+      // Mode B (avec type/html_body)
+      const payload = pick(raw, ['tenant_id', 'type', 'subject', 'html_body', 'text_body', 'is_active', 'placeholders']);
+
+      const { error } = await supabase.from('email_templates').insert(payload);
 
       if (error) throw error;
 
@@ -591,12 +638,84 @@ export function SuperAdminGlobalEmailTemplates() {
         )}
       </div>
 
+      {saveError && !saveError.ok && (
+        <div
+          data-testid="tmpl-save-error"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        >
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-2xl w-full p-6">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="bg-red-100 dark:bg-red-900/30 p-3 rounded-lg">
+                <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-red-900 dark:text-red-400 mb-2">
+                  Erreur lors de la sauvegarde
+                </h3>
+                <div className="space-y-2 text-sm">
+                  {saveError.mode && (
+                    <div>
+                      <strong className="text-slate-700 dark:text-slate-300">Mode:</strong>
+                      <code className="ml-2 px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded font-mono text-xs">
+                        {saveError.mode}
+                      </code>
+                    </div>
+                  )}
+                  {saveError.status && (
+                    <div>
+                      <strong className="text-slate-700 dark:text-slate-300">Status:</strong>
+                      <code className="ml-2 px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded font-mono text-xs">
+                        {saveError.status}
+                      </code>
+                    </div>
+                  )}
+                  {saveError.message && (
+                    <div>
+                      <strong className="text-slate-700 dark:text-slate-300">Message:</strong>
+                      <p className="mt-1 text-slate-600 dark:text-slate-400">
+                        {saveError.message}
+                      </p>
+                    </div>
+                  )}
+                  {saveError.details && (
+                    <div>
+                      <strong className="text-slate-700 dark:text-slate-300">Details:</strong>
+                      <p className="mt-1 text-slate-600 dark:text-slate-400">
+                        {saveError.details}
+                      </p>
+                    </div>
+                  )}
+                  {saveError.hint && (
+                    <div>
+                      <strong className="text-slate-700 dark:text-slate-300">Hint:</strong>
+                      <p className="mt-1 text-slate-600 dark:text-slate-400">
+                        {saveError.hint}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                onClick={() => setSaveError(null)}
+                className="px-4 py-2 bg-slate-300 hover:bg-slate-400 dark:bg-slate-600 dark:hover:bg-slate-500 text-slate-800 dark:text-white rounded-lg transition"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <GlobalTemplateEditorModal
         isOpen={editorModal.isOpen}
         onClose={handleCloseModal}
         onSave={handleSaveTemplate}
+        onSuccess={fetchTemplates}
         initialData={editorModal.initialData}
         mode={editorModal.mode}
+        templateId={editorModal.templateId}
         existingKeys={existingKeys}
       />
 

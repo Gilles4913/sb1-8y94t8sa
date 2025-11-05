@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAsTenant } from '../hooks/useAsTenant';
+import { useToast } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
 
 interface LayoutProps {
@@ -51,16 +52,10 @@ const navigation: NavItem[] = [
     roles: ['super_admin'],
   },
   {
-    label: 'Modèles e-mails par défaut',
+    label: 'Templates e-mails',
     icon: Mail,
-    path: '/default-email-templates',
-    roles: ['super_admin'],
-  },
-  {
-    label: 'Templates globaux',
-    icon: Mail,
-    path: '/global-email-templates',
-    roles: ['super_admin'],
+    path: '/emails/templates',
+    roles: ['super_admin', 'club_admin'],
   },
   {
     label: 'Vérificateur de Schéma',
@@ -152,8 +147,10 @@ export function Layout({ children }: LayoutProps) {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { asTenantId, isMasquerading, clearAsTenant } = useAsTenant();
+  const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [asTenantName, setAsTenantName] = useState<string | null>(null);
+  const [tenantStatus, setTenantStatus] = useState<'active' | 'inactive' | null>(null);
 
   const userNavigation = navigation.filter((item) =>
     profile?.role ? item.roles.includes(profile.role as 'super_admin' | 'club_admin') : false
@@ -163,19 +160,29 @@ export function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     if (asTenantId) {
-      fetchTenantName(asTenantId);
+      fetchTenantData(asTenantId);
+    } else {
+      setTenantStatus(null);
+      setAsTenantName(null);
     }
   }, [asTenantId]);
 
-  const fetchTenantName = async (tenantId: string) => {
+  const fetchTenantData = async (tenantId: string) => {
     const { data } = await supabase
       .from('tenants')
-      .select('name')
+      .select('name, status')
       .eq('id', tenantId)
       .maybeSingle();
     if (data) {
       setAsTenantName(data.name);
+      setTenantStatus(data.status as 'active' | 'inactive');
     }
+  };
+
+  const handleQuitMasquerade = () => {
+    clearAsTenant();
+    toast.success('Mode masquerade désactivé');
+    window.location.href = '/admin/clubs';
   };
 
   return (
@@ -290,21 +297,38 @@ export function Layout({ children }: LayoutProps) {
         </header>
 
         {isMasquerading && (
-          <div className="sticky top-0 z-30 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-3 shadow-lg">
+          <div
+            data-testid="banner-masquerade"
+            className="sticky top-[57px] z-20 bg-gradient-to-r from-orange-600 to-orange-700 text-white px-4 py-3 shadow-lg"
+          >
             <div className="max-w-7xl mx-auto flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <AlertCircle className="w-5 h-5" />
                 <p className="text-sm font-medium">
-                  Vous consultez l'environnement de : <span className="font-bold">{asTenantName || 'Chargement...'}</span>
+                  Mode super_admin — Vous voyez l'environnement du club : <span className="font-bold">{asTenantName || 'Chargement...'}</span>
                 </p>
               </div>
               <button
-                onClick={clearAsTenant}
+                onClick={handleQuitMasquerade}
                 className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-sm font-medium flex items-center gap-2"
               >
                 <X className="w-4 h-4" />
                 Quitter
               </button>
+            </div>
+          </div>
+        )}
+
+        {asTenantId && tenantStatus === 'inactive' && (
+          <div
+            data-testid="banner-tenant-inactive"
+            className="sticky top-[57px] z-20 bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-3 shadow-lg"
+          >
+            <div className="max-w-7xl mx-auto flex items-center gap-3">
+              <AlertCircle className="w-5 h-5" />
+              <p className="text-sm font-medium">
+                Ce club est désactivé — accès en lecture seule
+              </p>
             </div>
           </div>
         )}

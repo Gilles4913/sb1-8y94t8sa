@@ -1,39 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { getAsTenantId } from '../lib/tenantContext';
 
 export function useAsTenant() {
   const { profile } = useAuth();
-  const [asTenantId, setAsTenantId] = useState<string | null>(null);
+  const [asTenantId, setAsTenantIdState] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const queryTenantId = params.get('asTenant');
-    const storedTenantId = localStorage.getItem('as_tenant_id');
-
-    if (queryTenantId) {
-      localStorage.setItem('as_tenant_id', queryTenantId);
-      setAsTenantId(queryTenantId);
-    } else if (storedTenantId) {
-      setAsTenantId(storedTenantId);
-    } else {
-      setAsTenantId(null);
-    }
+    const tenantId = getAsTenantId();
+    setAsTenantIdState(tenantId);
   }, []);
 
-  const setAsTenant = (tenantId: string | null) => {
+  const setAsTenantId = (tenantId: string | null) => {
     if (tenantId) {
       localStorage.setItem('as_tenant_id', tenantId);
-      setAsTenantId(tenantId);
+      setAsTenantIdState(tenantId);
     } else {
       localStorage.removeItem('as_tenant_id');
-      setAsTenantId(null);
+      setAsTenantIdState(null);
     }
   };
 
   const clearAsTenant = () => {
     localStorage.removeItem('as_tenant_id');
-    setAsTenantId(null);
-    window.location.href = '/super';
+    setAsTenantIdState(null);
   };
 
   const isMasquerading = profile?.role === 'super_admin' && !!asTenantId;
@@ -43,7 +33,7 @@ export function useAsTenant() {
   return {
     asTenantId,
     isMasquerading,
-    setAsTenantId: setAsTenant,
+    setAsTenantId,
     clearAsTenant,
     effectiveTenantId,
   };

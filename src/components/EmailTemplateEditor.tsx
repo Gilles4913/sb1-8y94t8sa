@@ -14,12 +14,13 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { saveEmailTemplateProd } from '../lib/emailTemplateSave';
 
 interface EmailTemplate {
   id: string;
-  type: string;
+  key: string;
   subject: string;
-  html_body: string;
+  html: string;
   text_body: string;
   placeholders: string[];
   is_active: boolean;
@@ -31,7 +32,7 @@ interface TemplateVersion {
   template_id: string;
   version_number: number;
   subject: string;
-  html_body: string;
+  html: string;
   text_body: string;
   placeholders: string[];
   created_at: string;
@@ -90,6 +91,9 @@ export function EmailTemplateEditor({ templateType, onClose }: EmailTemplateEdit
   const [showVersions, setShowVersions] = useState(false);
   const [editMode, setEditMode] = useState<'html' | 'text'>('html');
   const [testEmail, setTestEmail] = useState('');
+  const [debugOut, setDebugOut] = useState<{request?:any; response?:any} | null>(null);
+  const [savingDebug, setSavingDebug] = useState(false);
+  const [saveError, setSaveError] = useState<{status?:number; message?:string; details?:string; hint?:string; code?:string; sentKeys?:string[]} | null>(null);
 
   useEffect(() => {
     fetchTemplate();
@@ -101,7 +105,7 @@ export function EmailTemplateEditor({ templateType, onClose }: EmailTemplateEdit
       const { data: templateData, error: templateError } = await supabase
         .from('email_templates')
         .select('*')
-        .eq('type', templateType)
+        .eq('key', templateType)
         .maybeSingle();
 
       if (templateError) throw templateError;
@@ -114,8 +118,8 @@ export function EmailTemplateEditor({ templateType, onClose }: EmailTemplateEdit
             : JSON.parse(templateData.placeholders || '[]'),
         });
         setSubject(templateData.subject);
-        setHtmlBody(templateData.html_body);
-        setTextBody(templateData.text_body);
+        setHtmlBody(templateData.html);
+        setTextBody(templateData.text_body || '');
       }
 
       if (templateData?.id) {
@@ -158,28 +162,80 @@ export function EmailTemplateEditor({ templateType, onClose }: EmailTemplateEdit
     return template.placeholders.filter((p) => !usedVariables.includes(p));
   }, [subject, htmlBody, textBody, template]);
 
+  async function getAccessToken() {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || null;
+  }
+
+  async function saveDebugREST() {
+    if (!template) {
+      setDebugOut({ response: { error: 'No template loaded' } });
+      return;
+    }
+
+    setSavingDebug(true);
+    setDebugOut(null);
+    try {
+      const accessToken = await getAccessToken();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/email_templates?id=eq.${template.id}`;
+      const payload = {
+        subject: subject ?? '',
+        html: htmlBody ?? '',
+        key: template.key ?? ''
+      };
+
+      const req = {
+        method: 'PATCH',
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY!,
+          'Authorization': accessToken ? `Bearer ${accessToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY!}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(payload)
+      };
+
+      const res = await fetch(url, req);
+      const text = await res.text();
+      let json: any = null;
+      try { json = JSON.parse(text); } catch { json = { raw: text }; }
+
+      setDebugOut({ request: { url, ...req, body: payload }, response: { status: res.status, json } });
+    } catch (e: any) {
+      setDebugOut({ response: { error: String(e) } });
+    } finally {
+      setSavingDebug(false);
+    }
+  }
+
   const handleSave = async () => {
     if (!template) return;
 
     setSaving(true);
+    setSaveError(null);
     try {
-      const { error } = await supabase
-        .from('email_templates')
-        .update({
-          subject,
-          html_body: htmlBody,
-          text_body: textBody,
-          updated_at: new Date().toISOString(),
-          updated_by: user?.id,
-        })
-        .eq('id', template.id);
-
-      if (error) throw error;
+      await saveEmailTemplateProd(template.id, {
+        subject: subject || '',
+        key: template.key || '',
+        html: htmlBody || '',
+        text_body: textBody || '',
+      });
 
       toast.success('Template enregistré avec succès');
+      setSaveError(null);
       fetchTemplate();
     } catch (error: any) {
-      toast.error('Erreur lors de l\'enregistrement');
+      console.error('Error saving template:', error);
+      setSaveError({
+        status: error.status,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        sentKeys: error.sentKeys,
+      });
+      const msg = error.hint || error.message || 'Erreur lors de l\'enregistrement';
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -211,7 +267,7 @@ export function EmailTemplateEditor({ templateType, onClose }: EmailTemplateEdit
         .from('email_templates')
         .update({
           subject: version.subject,
-          html_body: version.html_body,
+          html: version.html,
           text_body: version.text_body,
           updated_at: new Date().toISOString(),
           updated_by: user?.id,
@@ -414,6 +470,82 @@ export function EmailTemplateEditor({ templateType, onClose }: EmailTemplateEdit
                     </span>
                   )}
                 </button>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <div className="border border-slate-300 dark:border-slate-600 rounded p-3 bg-slate-50 dark:bg-slate-800 mb-4">
+                  <div className="font-semibold mb-2 text-slate-800 dark:text-slate-200">Debug · Save (REST minimal)</div>
+                  <button
+                    type="button"
+                    onClick={saveDebugREST}
+                    disabled={savingDebug}
+                    className="px-3 py-1 rounded bg-black dark:bg-slate-700 text-white disabled:opacity-50"
+                    data-testid="btn-save-debug-rest"
+                  >
+                    {savingDebug ? 'Saving…' : 'Save (debug via REST)'}
+                  </button>
+                  {debugOut && (
+                    <div className="mt-3 grid gap-2">
+                      <div>
+                        <div className="text-xs font-mono opacity-70 dark:text-slate-400">REQUEST</div>
+                        <pre className="text-xs bg-white dark:bg-slate-900 p-2 rounded overflow-auto border border-slate-200 dark:border-slate-700">{JSON.stringify(debugOut.request, null, 2)}</pre>
+                      </div>
+                      <div>
+                        <div className="text-xs font-mono opacity-70 dark:text-slate-400">RESPONSE</div>
+                        <pre className="text-xs bg-white dark:bg-slate-900 p-2 rounded overflow-auto border border-slate-200 dark:border-slate-700">{JSON.stringify(debugOut.response, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {saveError && (
+                  <div className="border border-red-300 dark:border-red-700 rounded p-4 bg-red-50 dark:bg-red-900/20 mb-4">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="font-semibold text-red-800 dark:text-red-200 mb-2">
+                          Erreur lors de la sauvegarde
+                        </div>
+                        {saveError.status && (
+                          <div className="text-sm mb-1">
+                            <span className="font-medium text-red-700 dark:text-red-300">Status:</span>{' '}
+                            <span className="text-red-600 dark:text-red-400">{saveError.status}</span>
+                          </div>
+                        )}
+                        {saveError.code && (
+                          <div className="text-sm mb-1">
+                            <span className="font-medium text-red-700 dark:text-red-300">Code:</span>{' '}
+                            <span className="text-red-600 dark:text-red-400">{saveError.code}</span>
+                          </div>
+                        )}
+                        {saveError.message && (
+                          <div className="text-sm mb-1">
+                            <span className="font-medium text-red-700 dark:text-red-300">Message:</span>{' '}
+                            <span className="text-red-600 dark:text-red-400">{saveError.message}</span>
+                          </div>
+                        )}
+                        {saveError.details && (
+                          <div className="text-sm mb-1">
+                            <span className="font-medium text-red-700 dark:text-red-300">Détails:</span>{' '}
+                            <span className="text-red-600 dark:text-red-400">{saveError.details}</span>
+                          </div>
+                        )}
+                        {saveError.hint && (
+                          <div className="text-sm mb-1">
+                            <span className="font-medium text-red-700 dark:text-red-300">Hint:</span>{' '}
+                            <span className="text-red-600 dark:text-red-400">{saveError.hint}</span>
+                          </div>
+                        )}
+                        {saveError.sentKeys && saveError.sentKeys.length > 0 && (
+                          <div className="text-sm">
+                            <span className="font-medium text-red-700 dark:text-red-300">Clés envoyées:</span>{' '}
+                            <span className="text-red-600 dark:text-red-400">{saveError.sentKeys.join(', ')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
