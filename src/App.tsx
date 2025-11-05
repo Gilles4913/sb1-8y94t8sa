@@ -35,6 +35,12 @@ import { BackendGuard } from './components/BackendGuard';
 import { EnvBanner } from './components/EnvBanner';
 import { useParams } from './components/Router';
 import { AdminClubs } from './components/AdminClubs';
+import { AdminClubsNew } from './components/AdminClubsNew';
+import { AdminEmailsTest } from './components/AdminEmailsTest';
+import { ResendDiagnostic } from './components/ResendDiagnostic';
+import { EmailLogsPage } from './components/EmailLogsPage';
+import { TenantEdit } from './components/TenantEdit';
+import { SupabaseDiagnostic } from './components/SupabaseDiagnostic';
 
 function TemplateDetailWrapper() {
   const { idOrKey } = useParams();
@@ -62,6 +68,20 @@ function TemplateDetailByIdWrapper() {
     );
   }
   return <TemplateDetail idOrKey={id} />;
+}
+
+function TenantEditWrapper() {
+  const { tenantId } = useParams();
+  if (!tenantId) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-slate-600">Tenant ID manquant</p>
+        </div>
+      </div>
+    );
+  }
+  return <TenantEdit />;
 }
 
 function AppContent() {
@@ -177,6 +197,29 @@ function renderAuthenticatedContent(profile: any, path: string) {
         </AuthGuard>
       );
     }
+    if (path === '/admin/clubs/new') {
+      return (
+        <AuthGuard allow={['super_admin']}>
+          <AdminClubsNew />
+        </AuthGuard>
+      );
+    }
+    if (path.startsWith('/admin/clubs/') && path.endsWith('/edit')) {
+      return (
+        <AuthGuard allow={['super_admin']}>
+          <Router>
+            <TenantEditWrapper />
+          </Router>
+        </AuthGuard>
+      );
+    }
+    if (path === '/admin/email-logs') {
+      return (
+        <AuthGuard allow={['super_admin']}>
+          <EmailLogsPage />
+        </AuthGuard>
+      );
+    }
     if (path === '/email-templates') {
       return (
         <AuthGuard allow={['super_admin']}>
@@ -237,6 +280,34 @@ function renderAuthenticatedContent(profile: any, path: string) {
       return (
         <AuthGuard allow={['super_admin', 'club_admin']}>
           <EmailTestLab />
+        </AuthGuard>
+      );
+    }
+    if (path === '/admin/emails-test') {
+      return (
+        <AuthGuard allow={['super_admin']}>
+          <AdminEmailsTest />
+        </AuthGuard>
+      );
+    }
+    if (path === '/admin/resend-diagnostic') {
+      return (
+        <AuthGuard allow={['super_admin']}>
+          <ResendDiagnostic />
+        </AuthGuard>
+      );
+    }
+    if (path === '/admin/email-logs') {
+      return (
+        <AuthGuard allow={['super_admin']}>
+          <EmailLogsPage />
+        </AuthGuard>
+      );
+    }
+    if (path === '/admin/diag/supabase') {
+      return (
+        <AuthGuard allow={['super_admin']}>
+          <SupabaseDiagnostic />
         </AuthGuard>
       );
     }

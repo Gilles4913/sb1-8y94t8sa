@@ -126,7 +126,7 @@ export function SponsorsList() {
             const { data: pledges } = await supabase
               .from('pledges')
               .select('id')
-              .eq('sponsor_email', sponsor.email);
+              .eq('sponsor_id', sponsor.id);
 
             return {
               ...sponsor,
@@ -391,7 +391,7 @@ export function SponsorsList() {
               Gestion des sponsors
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              {sponsors.length} sponsor(s) au total
+              {totalCount} sponsor(s) au total
             </p>
           </div>
           <div className="flex gap-2">

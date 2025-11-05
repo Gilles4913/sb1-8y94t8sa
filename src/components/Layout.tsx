@@ -19,7 +19,8 @@ import {
   Shield,
   HardDrive,
   CheckCircle,
-  FileSearch
+  FileSearch,
+  Inbox
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -85,6 +86,12 @@ const navigation: NavItem[] = [
     label: 'Audit Schema vs Code',
     icon: FileSearch,
     path: '/schema-audit',
+    roles: ['super_admin'],
+  },
+  {
+    label: 'Historique e-mails',
+    icon: Inbox,
+    path: '/admin/email-logs',
     roles: ['super_admin'],
   },
   {

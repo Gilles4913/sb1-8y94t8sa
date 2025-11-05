@@ -5,6 +5,7 @@ interface RouteParams {
   slug?: string;
   idOrKey?: string;
   id?: string;
+  tenantId?: string;
 }
 
 const ParamsContext = createContext<RouteParams>({});
@@ -31,6 +32,8 @@ export function Router({ children }: RouterProps) {
     params.idOrKey = parts[1];
   } else if (parts[0] === 'templates' && parts[1]) {
     params.id = parts[1];
+  } else if (parts[0] === 'admin' && parts[1] === 'clubs' && parts[2] && parts[3] === 'edit') {
+    params.tenantId = parts[2];
   }
 
   return <ParamsContext.Provider value={params}>{children}</ParamsContext.Provider>;

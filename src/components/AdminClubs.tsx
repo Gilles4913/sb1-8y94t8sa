@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Eye, Power, Edit, X, AlertCircle } from 'lucide-react';
+import { Search, Eye, Power, Edit, X, AlertCircle, Plus, Mail, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../contexts/ToastContext';
 import { useAsTenant } from '../hooks/useAsTenant';
@@ -19,6 +19,7 @@ interface Club {
   rgpd_content_md?: string | null;
   cgu_content_md?: string | null;
   privacy_content_md?: string | null;
+  admin_email?: string | null;
 }
 
 export function AdminClubs() {
@@ -46,6 +47,7 @@ export function AdminClubs() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [confirmToggle, setConfirmToggle] = useState<string | null>(null);
+  const [resendingInvite, setResendingInvite] = useState<string | null>(null);
 
   useEffect(() => {
     loadClubs();
@@ -54,13 +56,36 @@ export function AdminClubs() {
   const loadClubs = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: tenantData, error: tenantError } = await supabase
         .from('tenants')
         .select('id, name, email_contact, phone, status, created_at')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setClubs(data || []);
+      if (tenantError) throw tenantError;
+
+      if (!tenantData) {
+        setClubs([]);
+        return;
+      }
+
+      const tenantsWithAdmin = await Promise.all(
+        tenantData.map(async (tenant) => {
+          const { data: adminUser } = await supabase
+            .from('app_users')
+            .select('email')
+            .eq('tenant_id', tenant.id)
+            .eq('role', 'club_admin')
+            .maybeSingle();
+
+          return {
+            ...tenant,
+            admin_email: adminUser?.email || null,
+          };
+        })
+      );
+
+      setClubs(tenantsWithAdmin);
+
     } catch (err) {
       console.error('[AdminClubs] Error loading clubs:', err);
       toast.error('Erreur lors du chargement des clubs');
@@ -237,6 +262,43 @@ export function AdminClubs() {
     });
   };
 
+  const handleResendInvite = async (club: Club) => {
+    if (!club.admin_email) return;
+
+    setResendingInvite(club.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      if (!token) {
+        toast.error('Session expirée. Veuillez vous reconnecter.');
+        return;
+      }
+
+      const response = await fetch('/api/admin/resend-invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ admin_email: club.admin_email }),
+      });
+
+      const json = await response.json();
+
+      if (!response.ok || !json.ok) {
+        throw new Error(json.message || 'Échec renvoi invitation');
+      }
+
+      toast.success('Invitation renvoyée avec succès!');
+    } catch (error: any) {
+      console.error('Error resending invite:', error);
+      toast.error(error.message || 'Erreur lors du renvoi de l\'invitation');
+    } finally {
+      setResendingInvite(null);
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -250,6 +312,14 @@ export function AdminClubs() {
               inactifs)
             </p>
           </div>
+          <button
+            data-testid="btn-new-club"
+            onClick={() => window.location.href = '/admin/clubs/new'}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau club
+          </button>
         </div>
 
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 space-y-4">
@@ -364,6 +434,19 @@ export function AdminClubs() {
                             title="Éditer"
                           >
                             <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            data-testid={`btn-resend-invite-${club.id}`}
+                            onClick={() => handleResendInvite(club)}
+                            disabled={!club.admin_email || resendingInvite === club.id}
+                            className="p-1.5 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Renvoyer invitation"
+                          >
+                            {resendingInvite === club.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Mail className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>
