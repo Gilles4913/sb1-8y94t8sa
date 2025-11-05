@@ -8,17 +8,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-interface TestEmailPayload {
-  to: string;
-  subject: string;
-  html: string;
-  meta?: {
-    templateId?: string;
-    scope?: string;
-    tenantId?: string;
-  };
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -31,7 +20,7 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: "Missing Authorization header" }),
+        JSON.stringify({ ok: false, error: "Missing Authorization header" }),
         {
           status: 401,
           headers: {
@@ -59,7 +48,7 @@ Deno.serve(async (req: Request) => {
 
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized - invalid session" }),
+        JSON.stringify({ ok: false, error: "Unauthorized - invalid session" }),
         {
           status: 401,
           headers: {
@@ -70,12 +59,23 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const payload: TestEmailPayload = await req.json();
-    const { to, subject, html, meta } = payload;
+    const url = new URL(req.url);
+    let to = url.searchParams.get("to");
 
-    if (!to || !subject || !html) {
+    if (!to && req.method === "POST") {
+      try {
+        const body = await req.json();
+        to = body.to;
+      } catch {
+      }
+    }
+
+    if (!to) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: to, subject, html" }),
+        JSON.stringify({
+          ok: false,
+          error: "Missing recipient email. Provide it via query param ?to=email or in request body."
+        }),
         {
           status: 400,
           headers: {
@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(to)) {
       return new Response(
-        JSON.stringify({ error: "Invalid email format" }),
+        JSON.stringify({ ok: false, error: "Invalid email format" }),
         {
           status: 400,
           headers: {
@@ -102,11 +102,11 @@ Deno.serve(async (req: Request) => {
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
-      console.error("RESEND_API_KEY is not configured in environment");
+      console.error("RESEND_API_KEY is not configured");
       return new Response(
         JSON.stringify({
-          error: "Email service not configured",
-          message: "RESEND_API_KEY environment variable is missing",
+          ok: false,
+          error: "Email service not configured (RESEND_API_KEY missing)",
         }),
         {
           status: 500,
@@ -118,36 +118,37 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const fromEmail = Deno.env.get("FROM_EMAIL") || "No-Reply <noreply@a2display.fr>";
+    const baseUrl = Deno.env.get("VITE_PUBLIC_BASE_URL") || "local";
 
-    console.log("Sending test email via Resend:", {
-      to,
-      subject,
-      from: fromEmail,
-      htmlLength: html.length,
-      userId: user.id,
-      userEmail: user.email,
-      meta,
-    });
+    console.log("Sending test email via Resend:", { to, baseUrl, userId: user.id });
 
     const resend = new Resend(resendApiKey);
 
     const { data, error } = await resend.emails.send({
-      from: fromEmail,
+      from: "noreply@notifications.a2display.fr",
       to: [to],
-      subject,
-      html,
+      subject: "Test Resend",
+      html: `<p>Bonjour,<br/><br/>Ceci est un test depuis ${baseUrl}</p>`,
+      text: "Test Resend OK",
+      reply_to: "contact@a2display.fr",
+    });
+
+    await supabaseClient.from('email_test_logs').insert({
+      user_id: user.id,
+      to_email: to,
+      status: error ? 'failed' : 'sent',
+      response_json: data || error,
     });
 
     if (error) {
       console.error("Resend API error:", error);
       return new Response(
         JSON.stringify({
-          error: "Failed to send email",
-          message: error.message || String(error),
+          ok: false,
+          error: error.message || String(error),
         }),
         {
-          status: 500,
+          status: 400,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json",
@@ -156,18 +157,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("Test email sent successfully:", {
-      resendId: data?.id,
-      to,
-      userId: user.id,
-      meta,
-    });
+    console.log("Test email sent successfully:", { resendId: data?.id, to, userId: user.id });
 
     return new Response(
       JSON.stringify({
-        id: data?.id,
-        success: true,
-        message: "Test email sent successfully",
+        ok: true,
+        message: "Email sent successfully",
+        data: {
+          id: data?.id,
+        },
       }),
       {
         status: 200,
@@ -182,7 +180,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({
-        error: "Internal server error",
+        ok: false,
         message: error instanceof Error ? error.message : String(error),
       }),
       {

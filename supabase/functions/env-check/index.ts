@@ -16,16 +16,11 @@ Deno.serve(async (req: Request) => {
 
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    const supabaseServiceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const vitePublicBackendName = Deno.env.get("VITE_PUBLIC_BACKEND_NAME");
-    const nextPublicBackendName = Deno.env.get("NEXT_PUBLIC_BACKEND_NAME");
+    const vitePublicBaseUrl = Deno.env.get("VITE_PUBLIC_BASE_URL");
 
     const data = {
-      RESEND_API_KEY: !!resendApiKey,
-      SUPABASE_SERVICE_ROLE: !!supabaseServiceRole,
-      SERVICE_ROLE_LENGTH: supabaseServiceRole?.length ?? 0,
-      NODE_ENV: Deno.env.get("NODE_ENV") || "unknown",
-      BACKEND_NAME: vitePublicBackendName || nextPublicBackendName || "unknown",
+      resend_api_key_present: !!resendApiKey,
+      vite_public_base_url: vitePublicBaseUrl || "(unset)",
     };
 
     return new Response(
