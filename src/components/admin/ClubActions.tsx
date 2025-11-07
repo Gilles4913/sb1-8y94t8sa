@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL!,
@@ -40,15 +41,21 @@ export function ClubActions({
   tenantId,
   adminEmail,
   status,
+  clubName,
   onChanged
 }: {
   tenantId: string
   adminEmail?: string
   status?: 'active'|'inactive'
+  clubName?: string
   onChanged?: () => void
 }) {
   const [busy, setBusy] = useState<'suspend'|'restore'|'delete'|'invite'|null>(null)
   const [msg, setMsg] = useState<string| null>(null)
+  const [confirmHardOpen, setConfirmHardOpen] = useState(false)
+  const [confirmSuspendOpen, setConfirmSuspendOpen] = useState(false)
+  const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false)
+  const [confirmValue, setConfirmValue] = useState('')
 
   const doSuspend = async () => {
     setMsg(null); setBusy('suspend')
@@ -61,9 +68,6 @@ export function ClubActions({
     catch (e:any){ setMsg(e.message) } finally { setBusy(null) }
   }
   const doDelete = async () => {
-    if (!confirm('⚠️ Suppression DÉFINITIVE de ce club et de toutes ses données. Continuer ?')) return
-    const name = prompt('Tapez "SUPPRIMER" pour confirmer :')
-    if (name !== 'SUPPRIMER') return
     setMsg(null); setBusy('delete')
     try { await callManage(tenantId,'delete_hard'); setMsg('Club supprimé définitivement'); onChanged?.() } 
     catch (e:any){ setMsg(e.message) } finally { setBusy(null) }
@@ -76,23 +80,90 @@ export function ClubActions({
   }
 
   return (
-    <div style={{display:'flex', gap:8, alignItems:'center'}}>
-      {status === 'active' ? (
-        <button disabled={busy!==null} onClick={doSuspend}>
-          {busy==='suspend' ? '…' : 'Suspendre'}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-8">
+        {status === 'active' ? (
+          <button
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+            disabled={busy!==null}
+            onClick={() => setConfirmSuspendOpen(true)}
+          >
+            Suspendre
+          </button>
+        ) : (
+          <button
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+            disabled={busy!==null}
+            onClick={() => setConfirmRestoreOpen(true)}
+          >
+            Réactiver
+          </button>
+        )}
+
+        <button
+          className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+          disabled={busy!==null || !adminEmail}
+          onClick={doInvite}
+        >
+          {busy==='invite' ? 'Envoi…' : 'Renvoyer invitation'}
         </button>
-      ) : (
-        <button disabled={busy!==null} onClick={doRestore}>
-          {busy==='restore' ? '…' : 'Réactiver'}
+
+        <button
+          className="rounded-md border px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
+          disabled={busy!==null}
+          onClick={() => { setConfirmValue(''); setConfirmHardOpen(true) }}
+        >
+          Supprimer définitivement
         </button>
-      )}
-      <button disabled={busy!==null || !adminEmail} onClick={doInvite}>
-        {busy==='invite' ? '…' : 'Renvoyer invitation'}
-      </button>
-      <button disabled={busy!==null} onClick={doDelete} style={{color:'#b00020'}}>
-        {busy==='delete' ? '…' : 'Supprimer définitivement'}
-      </button>
-      {msg && <small style={{marginLeft:8}}>{msg}</small>}
+      </div>
+
+      {msg && <small className="text-gray-700">{msg}</small>}
+
+      {/* Confirm suspend */}
+      <ConfirmDialog
+        open={confirmSuspendOpen}
+        title="Suspendre le club"
+        description={`Le club ${clubName ?? ''} sera désactivé (accès bloqué). Vous pourrez le réactiver plus tard.`}
+        confirmLabel="Suspendre"
+        onCancel={() => setConfirmSuspendOpen(false)}
+        onConfirm={() => { setConfirmSuspendOpen(false); doSuspend() }}
+      />
+
+      {/* Confirm restore */}
+      <ConfirmDialog
+        open={confirmRestoreOpen}
+        title="Réactiver le club"
+        description={`Le club ${clubName ?? ''} sera réactivé et retrouvera l'accès.`}
+        confirmLabel="Réactiver"
+        onCancel={() => setConfirmRestoreOpen(false)}
+        onConfirm={() => { setConfirmRestoreOpen(false); doRestore() }}
+      />
+
+      {/* Confirm hard delete */}
+      <ConfirmDialog
+        open={confirmHardOpen}
+        title="Supprimer définitivement"
+        description={`⚠️ Action irréversible : toutes les données liées au club ${clubName ?? ''} seront supprimées (sponsors, campagnes, pledges, invitations, app_users, etc.).`}
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        danger
+        onCancel={() => setConfirmHardOpen(false)}
+        onConfirm={() => {
+          if (confirmValue !== 'SUPPRIMER') return
+          setConfirmHardOpen(false)
+          doDelete()
+        }}
+      >
+        <div className="mt-3">
+          <label className="text-sm">Tapez <b>SUPPRIMER</b> pour confirmer :</label>
+          <input
+            className="mt-2 w-full rounded-md border px-3 py-2 text-sm"
+            value={confirmValue}
+            onChange={e => setConfirmValue(e.target.value)}
+            placeholder="SUPPRIMER"
+          />
+        </div>
+      </ConfirmDialog>
     </div>
   )
 }
