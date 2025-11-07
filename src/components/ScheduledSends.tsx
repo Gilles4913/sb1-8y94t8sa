@@ -35,7 +35,7 @@ export function ScheduledSends() {
       const [jobsResult, campaignsResult] = await Promise.all([
         supabase
           .from('scheduled_jobs')
-          .select('*, campaigns(*)')
+          .select('*')
           .eq('tenant_id', effectiveTenantId)
           .order('scheduled_at', { ascending: false }),
         supabase
@@ -48,7 +48,13 @@ export function ScheduledSends() {
       if (jobsResult.error) throw jobsResult.error;
       if (campaignsResult.error) throw campaignsResult.error;
 
-      setJobs(jobsResult.data || []);
+      const campaignsMap = new Map((campaignsResult.data || []).map(c => [c.id, c]));
+      const jobsWithCampaigns = (jobsResult.data || []).map(job => ({
+        ...job,
+        campaign: job.campaign_id ? campaignsMap.get(job.campaign_id) : undefined,
+      }));
+
+      setJobs(jobsWithCampaigns);
       setCampaigns(campaignsResult.data || []);
     } catch (error: any) {
       toast.error('Erreur lors du chargement: ' + error.message);

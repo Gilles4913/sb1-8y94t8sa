@@ -113,7 +113,7 @@ export function SponsorsList() {
       }
 
       const { data, error, count } = await query
-        .order('created_at', { ascending: false })
+        .order('company', { ascending: true })
         .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
 
       if (error) throw error;
