@@ -27,6 +27,19 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAsTenant } from '../hooks/useAsTenant';
 import { useToast } from '../contexts/ToastContext';
 import { supabase } from '../lib/supabase';
+import ImpersonationBar from '@/components/admin/ImpersonationBar'
+
+function Layout() {
+  return (
+    <>
+      <TopNav />
+      <ImpersonationBar />
+      <Outlet />
+    </>
+  )
+}
+
+
 
 interface LayoutProps {
   children: ReactNode;
