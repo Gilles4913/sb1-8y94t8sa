@@ -4,6 +4,13 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import App from './App.tsx';
 import './index.css';
+import { TenantProvider } from '@/contexts/TenantContext'
+
+root.render(
+  <TenantProvider>
+    <App />
+  </TenantProvider>
+)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
