@@ -1,11 +1,9 @@
-// src/components/admin/ImpersonationBar.tsx
 import { useTenant } from '@/contexts/TenantContext'
 import { useNavigate } from 'react-router-dom'
 
 export default function ImpersonationBar() {
   const { activeTenant, isImpersonating, clearActiveTenant } = useTenant()
   const nav = useNavigate()
-
   if (!isImpersonating || !activeTenant) return null
 
   return (
@@ -14,10 +12,7 @@ export default function ImpersonationBar() {
         <b>Mode super_admin</b> — Vous voyez l'environnement du club : <b>{activeTenant.name}</b>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          className="rounded border px-2 py-1 text-xs"
-          onClick={() => nav('/club')} // route dashboard club
-        >
+        <button className="rounded border px-2 py-1 text-xs" onClick={() => nav('/clubs')}>
           Aller au dashboard club
         </button>
         <button
