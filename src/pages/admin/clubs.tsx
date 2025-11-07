@@ -110,7 +110,7 @@ export default function AdminClubsPage() {
                         className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
                         onClick={() => {
                           setActiveTenant({ id: r.id, name: r.name })
-                          navigate('/club') // route dashboard club
+                          navigate('/clubs') // route dashboard club (plural)
                         }}
                       >
                         Voir l’environnement club
