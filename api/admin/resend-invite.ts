@@ -1,51 +1,79 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
+// api/admin/resend-invite.ts
+import { createClient } from '@supabase/supabase-js'
+import { Resend } from 'resend'
 
-const URL = process.env.VITE_SUPABASE_URL!;
-const ANON = process.env.VITE_SUPABASE_ANON_KEY!;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const URL = process.env.SUPABASE_URL!
+const ANON = process.env.SUPABASE_ANON_KEY!
+const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const RESEND = process.env.RESEND_API_KEY!
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://sponsor.a2display.fr'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, message: 'Method Not Allowed' });
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ ok:false, message:'Method Not Allowed' })
+
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ ok: false, message: 'Missing token' });
+    // 1) AuthN appelant (super_admin requis)
+    const token = req.headers.authorization?.replace('Bearer ', '')
+    if (!token) return res.status(401).json({ ok:false, message:'Missing token' })
 
-    const sbUser = createClient(URL, ANON, { global: { headers: { Authorization: `Bearer ${token}` } } });
-    const { data: me } = await sbUser.auth.getUser();
-    if (!me?.user?.id) return res.status(401).json({ ok: false, message: 'Invalid session' });
+    const sbUser = createClient(URL, ANON, { global: { headers: { Authorization: `Bearer ${token}` } } })
+    const { data: me } = await sbUser.auth.getUser()
+    if (!me?.user?.id) return res.status(401).json({ ok:false, message:'Invalid session' })
 
-    const { data: roleRow, error: roleErr } = await sbUser
-      .from('app_users').select('role').eq('id', me.user.id).single();
-    if (roleErr || roleRow?.role !== 'super_admin') {
-      return res.status(403).json({ ok: false, message: 'Forbidden: super_admin only' });
-    }
+    const { data: myRole } = await sbUser.from('app_users').select('role').eq('id', me.user.id).single()
+    if (myRole?.role !== 'super_admin') return res.status(403).json({ ok:false, message:'Forbidden: super_admin only' })
 
-    const { admin_email } = req.body || {};
-    if (!admin_email) return res.status(400).json({ ok: false, message: 'admin_email required' });
+    // 2) Paramètres
+    const { admin_email, tenant_id } = req.body || {}
+    if (!admin_email) return res.status(400).json({ ok:false, message:'admin_email required' })
 
-    const sbAdmin = createClient(URL, SERVICE);
+    const sbAdmin = createClient(URL, SERVICE)
 
-    const existing = await sbAdmin.auth.admin.listUsers({ page: 1, perPage: 1, email: admin_email } as any);
-    if (existing.error) return res.status(400).json({ ok: false, message: existing.error.message });
+    // 3) Retrouver l'utilisateur auth par email
+    const listed = await sbAdmin.auth.admin.listUsers({ page: 1, perPage: 200 } as any)
+    const user = listed?.data?.users?.find(u => u.email?.toLowerCase() === String(admin_email).toLowerCase())
 
-    if (!existing.data.users?.length) {
-      const created = await sbAdmin.auth.admin.createUser({
-        email: admin_email,
-        email_confirm: false,
-        app_metadata: { role: 'club_admin' }
-      });
-      if (created.error) return res.status(400).json({ ok: false, message: created.error.message });
-      return res.status(200).json({ ok: true, created: true });
-    } else {
-      const invited = await sbAdmin.auth.admin.inviteUserByEmail?.(admin_email);
-      if (invited && invited.error) {
-        const rec = await sbAdmin.auth.admin.generateLink({ type: 'recovery', email: admin_email });
-        if (rec.error) return res.status(400).json({ ok: false, message: rec.error.message });
+    // 4) Générer un lien d’activation/récupération (première connexion)
+    //    inviteUserByEmail peut ne pas être dispo selon version => fallback generateLink('recovery')
+    let link: string | null = null
+    if (sbAdmin.auth.admin.inviteUserByEmail) {
+      const invited = await sbAdmin.auth.admin.inviteUserByEmail(admin_email)
+      if (invited?.error) {
+        const gl = await sbAdmin.auth.admin.generateLink({ type: 'recovery', email: admin_email })
+        if (gl.error) return res.status(400).json({ ok:false, message: gl.error.message })
+        link = gl.data?.action_link || null
       }
-      return res.status(200).json({ ok: true, invited: true });
+    } else {
+      const gl = await sbAdmin.auth.admin.generateLink({ type: 'recovery', email: admin_email })
+      if (gl.error) return res.status(400).json({ ok:false, message: gl.error.message })
+      link = gl.data?.action_link || null
     }
-  } catch (e: any) {
-    return res.status(500).json({ ok: false, message: e?.message || 'Server error' });
+
+    // 5) Envoyer un mail Resend (facultatif mais UX ++)
+    if (RESEND) {
+      try {
+        const resend = new Resend(RESEND)
+        await resend.emails.send({
+          from: 'noreply@notifications.a2display.fr',
+          to: admin_email,
+          subject: 'Votre accès administrateur — lien d’activation',
+          html: `
+            <p>Bonjour,</p>
+            <p>Voici votre lien pour activer (ou réactiver) votre accès administrateur&nbsp;:</p>
+            <p><a href="${link ?? `${PUBLIC_BASE_URL}/login`}">Activer mon compte</a></p>
+            ${tenant_id ? `<p>Club concerné : ${tenant_id}</p>` : ''}
+            <p>En cas de difficulté, vous pouvez aussi vous connecter ici : <a href="${PUBLIC_BASE_URL}/login">${PUBLIC_BASE_URL}/login</a></p>
+          `,
+          text: `Lien d’activation: ${link ?? `${PUBLIC_BASE_URL}/login`}`,
+          reply_to: 'contact@a2display.fr'
+        })
+      } catch (e) {
+        // Non bloquant
+      }
+    }
+
+    return res.status(200).json({ ok: true, user_id: user?.id ?? null, link_sent: !!RESEND, link_fallback: link ? true : false })
+  } catch (e:any) {
+    return res.status(500).json({ ok:false, message: e?.message || 'Server error' })
   }
 }
