@@ -13,10 +13,11 @@ export default function ClubDetailPage() {
   const [club, setClub] = useState<any>(null)
   const [adminEmail, setAdminEmail] = useState<string|undefined>()
   const [err, setErr] = useState<string|null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = async () => {
     if (!id) return
-    setErr(null)
+    setErr(null); setLoading(true)
     try {
       const { data: t, error } = await supabase
         .from('tenants')
@@ -32,32 +33,57 @@ export default function ClubDetailPage() {
       if (e2) throw e2
 
       setClub(t)
-      setAdminEmail(admins?.find(u => u.role === 'club_admin')?.email)
+      setAdminEmail(admins?.find(u => (u as any).role === 'club_admin')?.email)
     } catch (e:any) {
       setErr(e.message || String(e))
+    } finally {
+      setLoading(false)
     }
   }
 
   useEffect(() => { load() }, [id])
 
-  if (!id) return <div>Manque id</div>
+  if (!id) return <div className="p-6">ID club manquant</div>
 
   return (
-    <div style={{padding:24}}>
-      <h1>Détails du club</h1>
-      {err && <div style={{color:'#b00020'}}>{err}</div>}
-      {!club ? <p>Chargement…</p> : (
+    <div className="p-6">
+      <h1 className="mb-4 text-2xl font-semibold">Détails du club</h1>
+      {err && <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+      {loading ? <p>Chargement…</p> : !club ? <p>Club introuvable</p> : (
         <>
-          <p><b>Nom : </b>{club.name}</p>
-          <p><b>Contact : </b>{club.email_contact || '—'}</p>
-          <p><b>Statut : </b>{club.status}</p>
-          <p><b>Admin : </b>{adminEmail || '—'}</p>
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <div className="text-sm text-gray-500">Nom</div>
+              <div className="text-base">{club.name}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Email contact</div>
+              <div className="text-base">{club.email_contact || '—'}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Téléphone</div>
+              <div className="text-base">{club.phone || '—'}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Adresse</div>
+              <div className="text-base">{club.address || '—'}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Statut</div>
+              <div className="text-base">{club.status}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Admin</div>
+              <div className="text-base">{adminEmail || '—'}</div>
+            </div>
+          </div>
 
-          <div style={{marginTop:16}}>
+          <div className="mt-4">
             <ClubActions
               tenantId={id}
               adminEmail={adminEmail}
               status={club.status}
+              clubName={club.name}
               onChanged={load}
             />
           </div>
