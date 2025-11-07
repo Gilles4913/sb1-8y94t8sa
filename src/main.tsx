@@ -1,23 +1,14 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { ThemeProvider } from './contexts/ThemeContext';
-import { ToastProvider } from './contexts/ToastContext';
-import App from './App.tsx';
-import './index.css';
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { RouterProvider } from 'react-router-dom'
+import { router } from '@/router'
 import { TenantProvider } from '@/contexts/TenantContext'
+import './index.css'
 
-root.render(
-  <TenantProvider>
-    <App />
-  </TenantProvider>
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <TenantProvider>
+      <RouterProvider router={router} />
+    </TenantProvider>
+  </React.StrictMode>
 )
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ThemeProvider>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
-    </ThemeProvider>
-  </StrictMode>
-);
