@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom'
 
 // Layouts
+import PublicLayout from '@/components/layouts/PublicLayout'
 import AdminLayout from '@/components/layouts/AdminLayout'
 import ClubLayout from '@/components/layouts/ClubLayout'
 
@@ -8,21 +9,36 @@ import ClubLayout from '@/components/layouts/ClubLayout'
 import RequireSuperAdmin from '@/guards/RequireSuperAdmin'
 import RequireActiveTenant from '@/guards/RequireActiveTenant'
 
+// Pages publiques
+import PublicHome from '@/pages'
+import LoginPage from '@/pages/login'
+
 // Pages Admin
-import AdminDashboard from '@/pages/admin'         // /admin
-import AdminClubsPage from '@/pages/admin/clubs'   // /admin/clubs
-import ClubDetailPage from '@/pages/admin/clubs/[id]' // /admin/clubs/:id
+import AdminDashboard from '@/pages/admin'
+import AdminClubsPage from '@/pages/admin/clubs'
+import ClubDetailPage from '@/pages/admin/clubs/[id]'
 
 // Pages Club
-import ClubDashboard from '@/pages/clubs'          // /clubs
-import ClubSponsorsPage from '@/pages/clubs/sponsors' // /clubs/sponsors
+import ClubDashboard from '@/pages/clubs'
+import ClubSponsorsPage from '@/pages/clubs/sponsors'
 
-// Optionnel : 404
+// 404 simple
 function NotFound() {
   return <div className="p-6">404 — Page introuvable</div>
 }
 
 export const router = createBrowserRouter([
+  // Public
+  {
+    path: '/',
+    element: <PublicLayout />,
+    children: [
+      { index: true, element: <PublicHome /> },
+      { path: 'login', element: <LoginPage /> },
+    ],
+  },
+
+  // Admin
   {
     path: '/admin',
     element: (
@@ -36,6 +52,8 @@ export const router = createBrowserRouter([
       { path: 'clubs/:id', element: <ClubDetailPage /> },
     ],
   },
+
+  // Club (tenant actif requis)
   {
     path: '/clubs',
     element: (
@@ -48,7 +66,6 @@ export const router = createBrowserRouter([
       { path: 'sponsors', element: <ClubSponsorsPage /> },
     ],
   },
-  // racine (rediriger selon le rôle si tu veux)
-  { path: '/', element: <AdminDashboard /> },
+
   { path: '*', element: <NotFound /> },
 ])
