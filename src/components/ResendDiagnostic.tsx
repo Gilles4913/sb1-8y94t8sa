@@ -1,8 +1,34 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, AlertCircle, RefreshCw, Mail, Server, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, RefreshCw, Mail, Server, Clock, Bug } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Layout } from './Layout';
 import { useAuth } from '../contexts/AuthContext';
+
+function getApiBase() {
+  const envBase = import.meta.env.VITE_PUBLIC_BASE_URL?.trim();
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return envBase || origin;
+}
+
+function getApiUrl(path: string) {
+  const base = getApiBase();
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${p}`;
+}
+
+async function fetchJson(path: string) {
+  const url = getApiUrl(path);
+  try {
+    const res = await fetch(url, { headers: { 'accept': 'application/json' } });
+    const text = await res.text();
+    let json: any = null;
+    try { json = JSON.parse(text); } catch {}
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} — ${text.slice(0,200)}`);
+    return { ok: true, json: json ?? text, url, status: res.status };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message || e), url };
+  }
+}
 
 interface EnvCheckResult {
   RESEND_API_KEY: boolean;
@@ -33,6 +59,14 @@ export function ResendDiagnostic() {
   const [emailLogs, setEmailLogs] = useState<EmailTestLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<{
+    baseUrl: string;
+    envCheckUrl: string;
+    emailTestUrl: string;
+    envCheckStatus?: number;
+    emailTestStatus?: number;
+    lastError?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchDiagnostics();
@@ -42,18 +76,30 @@ export function ResendDiagnostic() {
     setLoading(true);
     setError(null);
 
-    try {
-      const envUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/env-check`;
-      const envResponse = await fetch(envUrl, {
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-      });
+    const baseUrl = getApiBase();
+    const envCheckUrl = getApiUrl('/api/env-check');
+    const emailTestUrl = getApiUrl('/api/email-test?to=test@example.com');
 
-      if (envResponse.ok) {
-        const envData = await envResponse.json();
-        setEnvCheck(envData);
+    const debug: typeof debugInfo = {
+      baseUrl,
+      envCheckUrl,
+      emailTestUrl,
+    };
+
+    try {
+      const envResult = await fetchJson('/api/env-check');
+      debug.envCheckStatus = envResult.status;
+
+      if (!envResult.ok) {
+        throw new Error(`env-check failed: ${envResult.error}`);
       }
+
+      const envData = envResult.json;
+      setEnvCheck({
+        RESEND_API_KEY: envData.resend_api_key_present || false,
+        VITE_PUBLIC_BASE_URL: !!envData.vite_public_base_url && envData.vite_public_base_url !== '(unset)',
+        timestamp: new Date().toISOString(),
+      });
 
       const resendApiKey = import.meta.env.VITE_RESEND_API_KEY;
       if (resendApiKey) {
@@ -86,9 +132,13 @@ export function ResendDiagnostic() {
         setEmailLogs(logs);
       }
 
+      setDebugInfo(debug);
+
     } catch (err: any) {
       console.error('Error fetching diagnostics:', err);
-      setError(err.message || 'Erreur lors du chargement des diagnostics');
+      debug.lastError = `${err.message} (URL: ${envCheckUrl})`;
+      setDebugInfo(debug);
+      setError(`${err.message}\nURL appelée: ${envCheckUrl}`);
     } finally {
       setLoading(false);
     }
@@ -187,9 +237,50 @@ export function ResendDiagnostic() {
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <h3 className="font-semibold text-red-900 dark:text-red-300">Erreur</h3>
-                <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+                <p className="text-sm text-red-700 dark:text-red-400 whitespace-pre-wrap">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {debugInfo && (
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" data-testid="resend-debug-panel">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-3">
+                <Bug className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  Debug Info
+                </h2>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3 font-mono text-xs">
+                <div className="p-3 bg-white dark:bg-slate-700/50 rounded-lg">
+                  <span className="text-slate-600 dark:text-slate-400">Base URL:</span>
+                  <p className="text-slate-900 dark:text-white break-all mt-1">{debugInfo.baseUrl}</p>
+                </div>
+                <div className="p-3 bg-white dark:bg-slate-700/50 rounded-lg">
+                  <span className="text-slate-600 dark:text-slate-400">env-check URL:</span>
+                  <p className="text-slate-900 dark:text-white break-all mt-1">{debugInfo.envCheckUrl}</p>
+                  {debugInfo.envCheckStatus && (
+                    <p className="text-slate-600 dark:text-slate-400 mt-1">Status: {debugInfo.envCheckStatus}</p>
+                  )}
+                </div>
+                <div className="p-3 bg-white dark:bg-slate-700/50 rounded-lg">
+                  <span className="text-slate-600 dark:text-slate-400">email-test URL:</span>
+                  <p className="text-slate-900 dark:text-white break-all mt-1">{debugInfo.emailTestUrl}</p>
+                  {debugInfo.emailTestStatus && (
+                    <p className="text-slate-600 dark:text-slate-400 mt-1">Status: {debugInfo.emailTestStatus}</p>
+                  )}
+                </div>
+                {debugInfo.lastError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <span className="text-red-600 dark:text-red-400">Last Error:</span>
+                    <p className="text-red-900 dark:text-red-300 break-all mt-1">{debugInfo.lastError}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
