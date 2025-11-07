@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { ClubActions } from '@/components/admin/ClubActions'
+import { useTenant } from '@/contexts/TenantContext'
+import { useNavigate } from 'react-router-dom'
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL!,
@@ -22,18 +24,20 @@ export default function AdminClubsPage() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string|null>(null)
   const [q, setQ] = useState('')
+  const { setActiveTenant } = useTenant()
+  const navigate = useNavigate()
 
   const load = async () => {
     setErr(null); setLoading(true)
     try {
-      // 1) liste des clubs
+      // 1) clubs
       const { data: clubs, error } = await supabase
         .from('tenants')
-        .select('id,name,email_contact,status,phone,address')
+        .select('id,name,email_contact,status,phone,address,created_at')
         .order('created_at', { ascending: false })
       if (error) throw error
 
-      // 2) récupérer les admin emails (app_users.club_admin)
+      // 2) admin email par tenant
       const ids = (clubs || []).map(c => c.id)
       let adminByTenant: Record<string,string|undefined> = {}
       if (ids.length) {
@@ -42,12 +46,12 @@ export default function AdminClubsPage() {
           .select('email, tenant_id, role')
           .in('tenant_id', ids)
         if (e2) throw e2
-        admins?.forEach(u => {
-          if ((u as any).role === 'club_admin') adminByTenant[(u as any).tenant_id!] = (u as any).email
+        ;(admins || []).forEach((u: any) => {
+          if (u.role === 'club_admin') adminByTenant[u.tenant_id] = u.email
         })
       }
 
-      setRows((clubs || []).map(c => ({ ...c, admin_email: adminByTenant[c.id] })))
+      setRows((clubs || []).map((c: any) => ({ ...c, admin_email: adminByTenant[c.id] })))
     } catch (e:any) {
       setErr(e.message || String(e))
     } finally {
@@ -57,11 +61,13 @@ export default function AdminClubsPage() {
 
   useEffect(() => { load() }, [])
 
-  const filtered = rows.filter(r => {
-    if (!q.trim()) return true
-    const hay = `${r.name} ${r.email_contact ?? ''} ${r.admin_email ?? ''}`.toLowerCase()
-    return hay.includes(q.toLowerCase())
-  })
+  const filtered = useMemo(() => {
+    if (!q.trim()) return rows
+    const s = q.toLowerCase()
+    return rows.filter(r =>
+      `${r.name} ${r.email_contact ?? ''} ${r.admin_email ?? ''}`.toLowerCase().includes(s)
+    )
+  }, [rows, q])
 
   return (
     <div className="p-6">
@@ -81,7 +87,7 @@ export default function AdminClubsPage() {
 
       {loading ? <p>Chargement…</p> : (
         <div className="overflow-auto rounded-lg border">
-          <table className="w-full min-w-[800px] border-collapse">
+          <table className="w-full min-w-[980px] border-collapse">
             <thead className="bg-gray-50">
               <tr>
                 <th className="p-3 text-left text-sm font-medium">Nom</th>
@@ -99,13 +105,25 @@ export default function AdminClubsPage() {
                   <td className="p-3">{r.admin_email || '—'}</td>
                   <td className="p-3">{r.status}</td>
                   <td className="p-3">
-                    <ClubActions
-                      tenantId={r.id}
-                      adminEmail={r.admin_email || undefined}
-                      status={r.status}
-                      clubName={r.name}
-                      onChanged={load}
-                    />
+                    <div className="flex flex-wrap items-center gap-10">
+                      <button
+                        className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+                        onClick={() => {
+                          setActiveTenant({ id: r.id, name: r.name })
+                          navigate('/club') // route dashboard club
+                        }}
+                      >
+                        Voir l’environnement club
+                      </button>
+
+                      <ClubActions
+                        tenantId={r.id}
+                        adminEmail={r.admin_email || undefined}
+                        status={r.status}
+                        clubName={r.name}
+                        onChanged={load}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
