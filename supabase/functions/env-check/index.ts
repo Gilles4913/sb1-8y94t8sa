@@ -19,8 +19,9 @@ Deno.serve(async (req: Request) => {
     const vitePublicBaseUrl = Deno.env.get("VITE_PUBLIC_BASE_URL");
 
     const data = {
-      resend_api_key_present: !!resendApiKey,
-      vite_public_base_url: vitePublicBaseUrl || "(unset)",
+      RESEND_API_KEY: !!resendApiKey,
+      VITE_PUBLIC_BASE_URL: !!vitePublicBaseUrl,
+      timestamp: new Date().toISOString(),
     };
 
     return new Response(
