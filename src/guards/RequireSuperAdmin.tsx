@@ -9,19 +9,16 @@ const supabase = createClient(
 
 export default function RequireSuperAdmin({ children }: { children: JSX.Element }) {
   const [ok, setOk] = useState<boolean|null>(null)
-
   useEffect(() => {
     (async () => {
       const { data: me } = await supabase.auth.getUser()
       const uid = me.user?.id
       if (!uid) { setOk(false); return }
-      const { data, error } = await supabase
-        .from('app_users').select('role').eq('id', uid).single()
+      const { data, error } = await supabase.from('app_users').select('role').eq('id', uid).single()
       if (error) { setOk(false); return }
       setOk(data?.role === 'super_admin')
     })()
   }, [])
-
   if (ok === null) return <div className="p-6">Chargement…</div>
   if (!ok) return <Navigate to="/login" replace />
   return children
