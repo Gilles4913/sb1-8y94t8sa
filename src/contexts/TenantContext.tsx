@@ -19,16 +19,12 @@ const TenantContext = createContext<TenantContextValue>({
 })
 
 export function TenantProvider({ children }: { children: React.ReactNode }) {
-  const [tenant, setTenantState] = useState<Tenant>(null)
-
-  // 🔹 Charger le tenant actif depuis le localStorage
-  useEffect(() => {
+  const [tenant, setTenantState] = useState<Tenant>(() => {
     const id = localStorage.getItem('activeTenantId')
     const name = localStorage.getItem('activeTenantName')
-    if (id) setTenantState({ id, name: name || 'Club' })
-  }, [])
+    return id ? { id, name: name || 'Club' } : null
+  })
 
-  // 🔹 Sauvegarder ou supprimer dans le localStorage
   const setTenant = (t: Tenant) => {
     setTenantState(t)
     if (t) {
@@ -40,9 +36,13 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const clearTenant = () => setTenant(null)
+  const clearTenant = () => {
+    setTenantState(null)
+    localStorage.removeItem('activeTenantId')
+    localStorage.removeItem('activeTenantName')
+  }
 
-  // 🔹 Nettoyer à la déconnexion
+  // Réinitialisation à la déconnexion
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) clearTenant()
