@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import supabase from '@/lib/supabase'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
-const supabase = createClient(url!, key!)
+// on continue d’afficher url/key dans la page, mais on n’instancie plus ici
 
 export default function DebugEnvPage() {
   const [out, setOut] = useState<any>(null)
