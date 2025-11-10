@@ -26,12 +26,10 @@ export default function LoginPage() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
   const emailRef = useRef<HTMLInputElement | null>(null)
 
-  // Diagnostic : affiche l’email de session si existante
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser()
-      const currentEmail = data.user?.email ?? null
-      setSessionEmail(currentEmail)
+      setSessionEmail(data.user?.email ?? null)
       setTimeout(() => emailRef.current?.focus(), 0)
     })()
   }, [])
@@ -39,12 +37,11 @@ export default function LoginPage() {
   const hardClearSession = async () => {
     try { await supabase.auth.signOut() } catch {}
     try {
-      const keys = Object.keys(localStorage)
-      for (const k of keys) {
+      Object.keys(localStorage).forEach(k => {
         if (k.startsWith('sb-') || k === 'activeTenantId' || k === 'activeTenantName') {
           localStorage.removeItem(k)
         }
-      }
+      })
     } catch {}
     setSessionEmail(null)
     setEmail('')
@@ -58,13 +55,10 @@ export default function LoginPage() {
     setMsg(null); setLoading(true)
     try {
       await supabase.auth.signOut().catch(() => {})
-
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-
       localStorage.removeItem('activeTenantId')
       localStorage.removeItem('activeTenantName')
-
       const role = await getUserRole()
       if (role === 'super_admin') nav('/admin', { replace: true })
       else nav('/clubs', { replace: true })
@@ -82,7 +76,7 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto mt-10 w-full max-w-md rounded-lg border bg-white p-6 text-gray-900 dark:bg-zinc-950 dark:text-gray-100 dark:border-zinc-800">
-      <LoginSafety /> {/* purge douce des reliquats, n’empêche pas le rendu */}
+      <LoginSafety />
       <h1 className="mb-4 text-xl font-semibold">Connexion</h1>
 
       {sessionEmail && (
@@ -120,7 +114,6 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-
         <input
           className="rounded border px-3 py-2 text-sm dark:bg-zinc-900 dark:border-zinc-700 dark:text-gray-100"
           type="password"
@@ -130,7 +123,6 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-
         <div className="flex items-center gap-2">
           <button
             className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-gray-200"
