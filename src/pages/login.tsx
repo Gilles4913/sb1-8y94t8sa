@@ -53,8 +53,11 @@ export default function LoginPage() {
       if (role === 'super_admin') nav('/admin', { replace: true })
       else nav('/clubs', { replace: true })
     } catch (e: any) {
-      setMsg(e.message || 'Échec de la connexion')
+      const msg = e?.message || 'Échec de la connexion'
+      const code = e?.status || e?.code || ''
+      setMsg(code ? `${msg} (code: ${code})` : msg)
     } finally { setLoading(false) }
+
   }
 
   const clearForm = () => { setEmail(''); setPassword(''); setMsg(null); setTimeout(() => emailRef.current?.focus(), 0) }
