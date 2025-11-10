@@ -1,25 +1,11 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
-/**
- * Supabase client (public) — nécessite VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
- */
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL!,
   import.meta.env.VITE_SUPABASE_ANON_KEY!
 )
 
-/**
- * Un tenant actif représente l’environnement club courant.
- * - En impersonation (super_admin) : stocké dans localStorage (activeTenantId/Name)
- * - En mode club_admin : déduit via app_users.tenant_id
- */
 type TenantInfo = { id: string; name: string } | null
 
 type TenantCtx = {
@@ -34,105 +20,67 @@ const TenantContext = createContext<TenantCtx>({
   activeTenant: null,
   setActiveTenant: () => {},
   clearActiveTenant: () => {},
-  loading: true,
+  loading: false,          // important: false par défaut pour ne pas bloquer le login
   isImpersonating: false,
 })
 
 export const useTenant = () => useContext(TenantContext)
 
-/**
- * Helpers
- */
-async function fetchTenantFromProfile():
-  Promise<{ tenant: TenantInfo; role?: 'super_admin' | 'club_admin' | null }> {
-  const { data: me } = await supabase.auth.getUser()
-  const uid = me.user?.id
-  if (!uid) return { tenant: null, role: null }
-
-  // On récupère tenant_id et le nom du club
-  const { data, error } = await supabase
+async function getProfileTenant(): Promise<TenantInfo> {
+  const { data } = await supabase.auth.getUser()
+  const uid = data.user?.id
+  if (!uid) return null
+  const { data: row } = await supabase
     .from('app_users')
-    .select('tenant_id, role, tenants(name)')
+    .select('tenant_id, tenants(name)')
     .eq('id', uid)
     .single()
-
-  if (error || !data) return { tenant: null, role: null }
-
-  const tId = (data as any).tenant_id as string | null
-  const tName = (data as any).tenants?.name as string | undefined
-  return {
-    tenant: tId ? { id: tId, name: tName || 'Club' } : null,
-    role: (data as any).role ?? null,
-  }
+  const tId = (row as any)?.tenant_id as string | undefined
+  const tName = (row as any)?.tenants?.name as string | undefined
+  return tId ? { id: tId, name: tName || 'Club' } : null
 }
 
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [activeTenant, setActiveTenantState] = useState<TenantInfo>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [isImpersonating, setIsImpersonating] = useState(false)
 
-  /**
-   * Initialisation :
-   * 1) Si localStorage contient activeTenantId => impersonation (super_admin)
-   * 2) Sinon, si l’utilisateur est club_admin avec tenant_id => tenant calculé depuis app_users
-   */
+  // INIT : essaie juste l’impersonation locale, sans appel réseau ni blocage
   useEffect(() => {
-    const init = async () => {
-      try {
-        const tid = localStorage.getItem('activeTenantId')
-        const tname = localStorage.getItem('activeTenantName')
-        if (tid) {
-          setActiveTenantState({ id: tid, name: tname || 'Club' })
-          setIsImpersonating(true)
-          return
-        }
-        const { tenant } = await fetchTenantFromProfile()
-        if (tenant) {
-          setActiveTenantState(tenant)
-          setIsImpersonating(false)
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    init()
-  }, [])
-
-  /**
-   * Écoute les changements d’auth :
-   * - Déconnexion => on nettoie l’état tenant + impersonation
-   * - Connexion/changement d’utilisateur => on recalcule tenant depuis app_users
-   */
-  useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!session) {
-          // Logout
-          setActiveTenant(null)
-          return
-        }
-        // Login ou token refresh : si pas d’impersonation explicite, recalcule depuis profil
-        const hasImpersonation =
-          !!localStorage.getItem('activeTenantId') ||
-          !!localStorage.getItem('activeTenantName')
-
-        if (!hasImpersonation) {
-          const { tenant } = await fetchTenantFromProfile()
-          setActiveTenantState(tenant)
-          setIsImpersonating(false)
-        }
-      }
-    )
-    return () => {
-      subscription.subscription?.unsubscribe?.()
+    const tid = localStorage.getItem('activeTenantId')
+    const tname = localStorage.getItem('activeTenantName')
+    if (tid) {
+      setActiveTenantState({ id: tid, name: tname || 'Club' })
+      setIsImpersonating(true)
     }
   }, [])
 
-  /**
-   * setActiveTenant :
-   * - si t défini => on passe en impersonation (stockage local)
-   * - si null => on sort de l’impersonation et on tente de reprendre le tenant “natif”
-   */
+  // Réagit aux changements d’auth sans bloquer le rendu
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, session) => {
+      if (!session) {
+        setIsImpersonating(false)
+        setActiveTenantState(null)
+        return
+      }
+      const hasImpersonation =
+        !!localStorage.getItem('activeTenantId') ||
+        !!localStorage.getItem('activeTenantName')
+
+      if (!hasImpersonation) {
+        setLoading(true)
+        try {
+          const t = await getProfileTenant()
+          setActiveTenantState(t)
+          setIsImpersonating(false)
+        } finally {
+          setLoading(false)
+        }
+      }
+    })
+    return () => { sub.subscription?.unsubscribe?.() }
+  }, [])
+
   const setActiveTenant = (t: TenantInfo) => {
     setActiveTenantState(t)
     if (t) {
@@ -146,32 +94,23 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  /**
-   * clearActiveTenant :
-   * - sort explicitement de l’impersonation
-   * - recharge le tenant “natif” (club_admin) si existant
-   */
   const clearActiveTenant = async () => {
     localStorage.removeItem('activeTenantId')
     localStorage.removeItem('activeTenantName')
     setIsImpersonating(false)
-    // Reprendre le tenant du profil (si club_admin)
-    const { tenant } = await fetchTenantFromProfile()
-    setActiveTenantState(tenant)
+    const { data } = await supabase.auth.getUser()
+    if (data.user) {
+      setLoading(true)
+      try { setActiveTenantState(await getProfileTenant()) }
+      finally { setLoading(false) }
+    } else {
+      setActiveTenantState(null)
+    }
   }
 
-  const value = useMemo(
-    () => ({
-      activeTenant,
-      setActiveTenant,
-      clearActiveTenant,
-      loading,
-      isImpersonating,
-    }),
-    [activeTenant, loading, isImpersonating]
-  )
+  const value = useMemo(() => ({
+    activeTenant, setActiveTenant, clearActiveTenant, loading, isImpersonating
+  }), [activeTenant, loading, isImpersonating])
 
-  return (
-    <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
-  )
+  return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
 }
