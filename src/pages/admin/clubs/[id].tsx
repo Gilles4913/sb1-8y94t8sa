@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createClient } from '@supabase/supabase-js'
+import supabase from '@/lib/supabase'
 import { ClubActions } from '@/components/admin/ClubActions'
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
-)
 
 export default function ClubDetailPage() {
   const { id } = useParams<{ id: string }>()
