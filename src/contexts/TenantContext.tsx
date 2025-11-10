@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_ANON_KEY!)
+import supabase from '@/lib/supabase'
 
 type TenantInfo = { id: string; name: string } | null
 type TenantCtx = {
@@ -11,6 +9,7 @@ type TenantCtx = {
   loading: boolean
   isImpersonating: boolean
 }
+
 const TenantContext = createContext<TenantCtx>({
   activeTenant: null, setActiveTenant: () => {}, clearActiveTenant: () => {},
   loading: false, isImpersonating: false,
@@ -39,19 +38,12 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const tid = localStorage.getItem('activeTenantId')
     const tname = localStorage.getItem('activeTenantName')
-    if (tid) {
-      setActiveTenantState({ id: tid, name: tname || 'Club' })
-      setIsImpersonating(true)
-    }
+    if (tid) { setActiveTenantState({ id: tid, name: tname || 'Club' }); setIsImpersonating(true) }
   }, [])
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, session) => {
-      if (!session) {
-        setIsImpersonating(false)
-        setActiveTenantState(null)
-        return
-      }
+      if (!session) { setIsImpersonating(false); setActiveTenantState(null); return }
       const hasImpersonation = !!localStorage.getItem('activeTenantId') || !!localStorage.getItem('activeTenantName')
       if (!hasImpersonation) {
         setLoading(true)
