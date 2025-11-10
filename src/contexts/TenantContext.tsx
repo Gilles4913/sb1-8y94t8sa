@@ -1,10 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import supabase from '@/lib/supabase'
 
-type Tenant = {
-  id: string
-  name: string
-} | null
+type Tenant = { id: string; name: string } | null
 
 interface TenantContextValue {
   tenant: Tenant
@@ -20,32 +17,45 @@ const TenantContext = createContext<TenantContextValue>({
 
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [tenant, setTenantState] = useState<Tenant>(() => {
+    // Récupération initiale dès le montage
     const id = localStorage.getItem('activeTenantId')
     const name = localStorage.getItem('activeTenantName')
     return id ? { id, name: name || 'Club' } : null
   })
 
+  // ---- SET TENANT ----
   const setTenant = (t: Tenant) => {
-    setTenantState(t)
     if (t) {
+      console.log('✅ setTenant:', t)
       localStorage.setItem('activeTenantId', t.id)
       localStorage.setItem('activeTenantName', t.name)
+      setTenantState(t)
     } else {
-      localStorage.removeItem('activeTenantId')
-      localStorage.removeItem('activeTenantName')
+      clearTenant()
     }
   }
 
+  // ---- CLEAR TENANT ----
   const clearTenant = () => {
-    setTenantState(null)
+    console.log('🚫 clearTenant()')
     localStorage.removeItem('activeTenantId')
     localStorage.removeItem('activeTenantName')
+    setTenantState(null)
   }
 
-  // Réinitialisation à la déconnexion
+  // ---- RESTAURE AU DÉMARRAGE ----
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) clearTenant()
+    const id = localStorage.getItem('activeTenantId')
+    const name = localStorage.getItem('activeTenantName')
+    if (id) setTenantState({ id, name: name || 'Club' })
+  }, [])
+
+  // ---- SUPABASE AUTH EVENTS ----
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔄 Auth event:', event, session?.user?.email)
+      // ⚠️ Ne pas effacer le tenant sauf déconnexion réelle
+      if (event === 'SIGNED_OUT' || !session) clearTenant()
     })
     return () => sub.subscription.unsubscribe()
   }, [])
