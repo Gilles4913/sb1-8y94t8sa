@@ -1,3 +1,4 @@
+// src/router.tsx
 import { createBrowserRouter } from 'react-router-dom'
 
 // Layouts
@@ -10,10 +11,9 @@ import RequireSuperAdmin from '@/guards/RequireSuperAdmin'
 import RequireActiveTenant from '@/guards/RequireActiveTenant'
 
 // Pages publiques
-import PublicHome from '@/pages'          // le fichier src/pages/index.tsx ci-dessus
+import PublicHome from '@/pages'          // src/pages/index.tsx avec le bouton "Se connecter"
 import LoginPage from '@/pages/login'
 import LogoutPage from '@/pages/logout'
-import DebugAuthPage from '@/pages/debug/auth'
 
 // Pages Admin
 import AdminDashboard from '@/pages/admin'
@@ -32,18 +32,15 @@ function NotFound() {
   return <div className="p-6">404 — Page introuvable</div>
 }
 
-
-
 export const router = createBrowserRouter([
   // Zone publique
   {
     path: '/',
     element: <PublicLayout />,
     children: [
-      { index: true, element: <PublicHome /> }, // bouton “Se connecter”
+      { index: true, element: <PublicHome /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'logout', element: <LogoutPage /> },
-      { path: 'debug/auth', element: <DebugAuthPage /> }, // ← TEMP
     ],
   },
 
