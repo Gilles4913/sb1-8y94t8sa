@@ -24,6 +24,9 @@ import ClubSponsorsPage from '@/pages/clubs/sponsors'
 import ClubCampaignsPage from '@/pages/clubs/campaigns'
 import ClubInvitationsPage from '@/pages/clubs/invitations'
 import ClubEmailTemplatesPage from '@/pages/clubs/templates'
+import LogoutPage from '@/pages/logout'
+// ...
+{ path: 'logout', element: <LogoutPage /> },
 
 // 404 simple
 function NotFound() {
