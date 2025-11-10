@@ -8,7 +8,7 @@ import RequireSuperAdmin from '@/guards/RequireSuperAdmin'
 import RequireActiveTenant from '@/guards/RequireActiveTenant'
 
 import PublicHome from '@/pages'
-import LoginPage from '@/pages/login'
+import LoginView from '@/pages/login'      // ← alias pour éviter toute collision
 import LogoutPage from '@/pages/logout'
 
 import AdminDashboard from '@/pages/admin'
@@ -29,7 +29,7 @@ export const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { index: true, element: <PublicHome /> },
-      { path: 'login', element: <LoginPage /> },
+      { path: 'login', element: <LoginView /> },  // ← alias utilisé ici
       { path: 'logout', element: <LogoutPage /> },
     ],
   },
