@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import supabase from '@/lib/supabase'
 import { useTenant } from '@/contexts/TenantContext'
 
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_ANON_KEY!)
 
 export default function ClubEmailTemplatesPage() {
   const { activeTenant, loading } = useTenant()
