@@ -1,4 +1,3 @@
-// src/components/layouts/TopNav.tsx
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -13,7 +12,6 @@ export default function TopNav() {
   const [role, setRole] = useState<Role>(null)
   const nav = useNavigate()
 
-  // Charger le rôle une seule fois à l’affichage du header
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -54,13 +52,9 @@ export default function TopNav() {
           Sponsor Manager
         </Link>
         <nav className="flex items-center gap-2">
-          {/* Admin visible uniquement si super_admin */}
           {role === 'super_admin' && item('/admin', 'Admin')}
-
-          {/* Club visible si club_admin OU super_admin avec impersonation active */}
           {(role === 'club_admin' || (role === 'super_admin' && !!activeTenant)) && item('/clubs', 'Club')}
 
-          {/* Indicateur d’impersonation + action */}
           {role === 'super_admin' && activeTenant && (
             <div className="ml-2 flex items-center gap-2 rounded-md border px-2 py-1 text-xs dark:border-zinc-700">
               <span className="opacity-70">Impersonation :</span>
