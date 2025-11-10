@@ -1,13 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
-)
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_ANON_KEY!)
 
 type TenantInfo = { id: string; name: string } | null
-
 type TenantCtx = {
   activeTenant: TenantInfo
   setActiveTenant: (t: TenantInfo) => void
@@ -15,15 +11,10 @@ type TenantCtx = {
   loading: boolean
   isImpersonating: boolean
 }
-
 const TenantContext = createContext<TenantCtx>({
-  activeTenant: null,
-  setActiveTenant: () => {},
-  clearActiveTenant: () => {},
-  loading: false,          // important: false par défaut pour ne pas bloquer le login
-  isImpersonating: false,
+  activeTenant: null, setActiveTenant: () => {}, clearActiveTenant: () => {},
+  loading: false, isImpersonating: false,
 })
-
 export const useTenant = () => useContext(TenantContext)
 
 async function getProfileTenant(): Promise<TenantInfo> {
@@ -45,7 +36,6 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [isImpersonating, setIsImpersonating] = useState(false)
 
-  // INIT : essaie juste l’impersonation locale, sans appel réseau ni blocage
   useEffect(() => {
     const tid = localStorage.getItem('activeTenantId')
     const tname = localStorage.getItem('activeTenantName')
@@ -55,7 +45,6 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Réagit aux changements d’auth sans bloquer le rendu
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, session) => {
       if (!session) {
@@ -63,19 +52,11 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         setActiveTenantState(null)
         return
       }
-      const hasImpersonation =
-        !!localStorage.getItem('activeTenantId') ||
-        !!localStorage.getItem('activeTenantName')
-
+      const hasImpersonation = !!localStorage.getItem('activeTenantId') || !!localStorage.getItem('activeTenantName')
       if (!hasImpersonation) {
         setLoading(true)
-        try {
-          const t = await getProfileTenant()
-          setActiveTenantState(t)
-          setIsImpersonating(false)
-        } finally {
-          setLoading(false)
-        }
+        try { setActiveTenantState(await getProfileTenant()); setIsImpersonating(false) }
+        finally { setLoading(false) }
       }
     })
     return () => { sub.subscription?.unsubscribe?.() }
@@ -83,34 +64,19 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveTenant = (t: TenantInfo) => {
     setActiveTenantState(t)
-    if (t) {
-      localStorage.setItem('activeTenantId', t.id)
-      localStorage.setItem('activeTenantName', t.name || '')
-      setIsImpersonating(true)
-    } else {
-      localStorage.removeItem('activeTenantId')
-      localStorage.removeItem('activeTenantName')
-      setIsImpersonating(false)
-    }
+    if (t) { localStorage.setItem('activeTenantId', t.id); localStorage.setItem('activeTenantName', t.name || ''); setIsImpersonating(true) }
+    else { localStorage.removeItem('activeTenantId'); localStorage.removeItem('activeTenantName'); setIsImpersonating(false) }
   }
 
   const clearActiveTenant = async () => {
-    localStorage.removeItem('activeTenantId')
-    localStorage.removeItem('activeTenantName')
-    setIsImpersonating(false)
+    localStorage.removeItem('activeTenantId'); localStorage.removeItem('activeTenantName'); setIsImpersonating(false)
     const { data } = await supabase.auth.getUser()
-    if (data.user) {
-      setLoading(true)
-      try { setActiveTenantState(await getProfileTenant()) }
-      finally { setLoading(false) }
-    } else {
-      setActiveTenantState(null)
-    }
+    if (data.user) { setLoading(true); try { setActiveTenantState(await getProfileTenant()) } finally { setLoading(false) } }
+    else { setActiveTenantState(null) }
   }
 
-  const value = useMemo(() => ({
-    activeTenant, setActiveTenant, clearActiveTenant, loading, isImpersonating
-  }), [activeTenant, loading, isImpersonating])
+  const value = useMemo(() => ({ activeTenant, setActiveTenant, clearActiveTenant, loading, isImpersonating }),
+    [activeTenant, loading, isImpersonating])
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
 }
