@@ -1,19 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from './database.types';
+import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const url = import.meta.env.VITE_SUPABASE_URL!
+const anon = import.meta.env.VITE_SUPABASE_ANON_KEY!
 
-if (supabaseUrl?.toLowerCase().includes('bolt')) {
-  throw new Error('Bolt Database is not supported. Use Supabase only.');
-}
+/**
+ * Singleton Supabase client
+ * - storageKey dédié à ton app pour éviter les collisions
+ * - persistSession/autoRefresh activés
+ */
+export const supabase = createClient(url, anon, {
+  auth: {
+    storageKey: 'sb-sponsor-auth',
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+})
 
-if (supabaseAnonKey?.toLowerCase().includes('bolt')) {
-  throw new Error('Bolt Database is not supported. Use Supabase only.');
-}
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export default supabase
