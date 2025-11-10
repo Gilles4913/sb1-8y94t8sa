@@ -11,6 +11,7 @@ export default function DebugAuthPage() {
     (async () => {
       try {
         const out: any = {}
+
         const { data: sess } = await supabase.auth.getSession()
         out.session = sess?.session ? {
           user_id: sess.session.user.id,
@@ -30,6 +31,7 @@ export default function DebugAuthPage() {
           out.app_user = au || null
           out.app_user_error = e1?.message || null
         }
+
         setInfo(out)
       } catch (e: any) {
         setErr(e.message || String(e))
