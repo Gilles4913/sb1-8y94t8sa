@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_ANON_KEY!)
+import supabase from '@/lib/supabase'
 
 export default function LoginSafety() {
   useEffect(() => {
-    try { localStorage.removeItem('activeTenantId'); localStorage.removeItem('activeTenantName') } catch {}
-    supabase.auth.signOut().catch(() => {}) // soft, non bloquant
+    try {
+      localStorage.removeItem('activeTenantId')
+      localStorage.removeItem('activeTenantName')
+    } catch {}
+    // déconnexion “soft” en arrière-plan, sans bloquer l’UI
+    supabase.auth.signOut().catch(() => {})
   }, [])
+
   return null
 }
