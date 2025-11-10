@@ -1,3 +1,4 @@
+// src/pages/login.tsx
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
@@ -25,13 +26,12 @@ export default function LoginPage() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
   const emailRef = useRef<HTMLInputElement | null>(null)
 
-  // Diagnostic : si une session existe encore, on l’indique et on propose "Changer de compte"
+  // Diagnostic : affiche l’email de session si existante
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser()
       const currentEmail = data.user?.email ?? null
       setSessionEmail(currentEmail)
-      // Focus direct sur le champ email pour être sûr de pouvoir le modifier immédiatement
       setTimeout(() => emailRef.current?.focus(), 0)
     })()
   }, [])
@@ -45,13 +45,11 @@ export default function LoginPage() {
           localStorage.removeItem(k)
         }
       }
-      // on garde éventuellement la préférence de thème
     } catch {}
     setSessionEmail(null)
     setEmail('')
     setPassword('')
     setMsg(null)
-    // re-focus
     setTimeout(() => emailRef.current?.focus(), 0)
   }
 
@@ -59,13 +57,11 @@ export default function LoginPage() {
     e.preventDefault()
     setMsg(null); setLoading(true)
     try {
-      // important : forcer la sortie d’une session résiduelle avant de tenter un nouveau login
       await supabase.auth.signOut().catch(() => {})
 
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
 
-      // clean impersonation si existait
       localStorage.removeItem('activeTenantId')
       localStorage.removeItem('activeTenantName')
 
@@ -86,13 +82,12 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto mt-10 w-full max-w-md rounded-lg border bg-white p-6 text-gray-900 dark:bg-zinc-950 dark:text-gray-100 dark:border-zinc-800">
+      <LoginSafety /> {/* purge douce des reliquats, n’empêche pas le rendu */}
       <h1 className="mb-4 text-xl font-semibold">Connexion</h1>
 
       {sessionEmail && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/20 dark:border-amber-900">
           Vous êtes (ou étiez) connecté en tant que <b>{sessionEmail}</b>.
-          <br />
-          Si vous souhaitez utiliser un autre compte, cliquez ci-dessous :
           <div className="mt-2">
             <button
               onClick={hardClearSession}
