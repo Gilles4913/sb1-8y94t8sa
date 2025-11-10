@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import supabase from '@/lib/supabase'
 
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_ANON_KEY!)
 
 export default function DebugAuthPage() {
   const [info, setInfo] = useState<any>(null)
