@@ -1,11 +1,7 @@
 import { useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import supabase from '@/lib/supabase'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
-)
 
 async function callManage(tenantId: string, action: 'suspend'|'restore'|'delete_hard') {
   const { data } = await supabase.auth.getSession()
