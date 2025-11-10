@@ -1,8 +1,6 @@
 import { Navigate } from 'react-router-dom'
-import { createClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
-
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_ANON_KEY!)
+import supabase from '@/lib/supabase'
 
 export default function RequireSuperAdmin({ children }: { children: JSX.Element }) {
   const [ok, setOk] = useState<boolean | null>(null)
