@@ -1,21 +1,29 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
 import { useTheme } from '@/contexts/ThemeContext'
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
-)
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL!, import.meta.env.VITE_SUPABASE_ANON_KEY!)
 
 export default function TopNav() {
-  const nav = useNavigate()
   const { theme, toggle } = useTheme()
 
   const logout = async () => {
-    try { await supabase.auth.signOut() } catch {}
-    localStorage.removeItem('activeTenantId')
-    localStorage.removeItem('activeTenantName')
-    nav('/login', { replace: true })
+    try {
+      // 1) Déconnexion Supabase (session en cours)
+      await supabase.auth.signOut()
+    } catch {}
+    try {
+      // 2) Purge de toutes les traces locales liées à l’app
+      const toRemove = Object.keys(localStorage).filter(k =>
+        k.startsWith('sb-') ||              // sessions supabase
+        k === 'activeTenantId' ||
+        k === 'activeTenantName'
+      )
+      toRemove.forEach(k => localStorage.removeItem(k))
+      // (on garde la préférence de thème)
+    } catch {}
+    // 3) Redirection dure (reset complet de l'état React)
+    window.location.href = '/login'
   }
 
   const item = (to: string, label: string) => (
