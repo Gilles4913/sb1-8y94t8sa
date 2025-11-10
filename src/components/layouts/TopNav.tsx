@@ -1,41 +1,63 @@
+// src/components/layouts/TopNav.tsx
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { useTheme } from '@/contexts/ThemeContext'
 import { useEffect, useState } from 'react'
-import { getCurrentRole } from '@/lib/auth'
+import { useTheme } from '@/contexts/ThemeContext'
 import { useTenant } from '@/contexts/TenantContext'
+import { getCurrentRole } from '@/lib/auth'
+
+type Role = 'super_admin' | 'club_admin' | null
 
 export default function TopNav() {
   const { theme, toggle } = useTheme()
   const { activeTenant, clearActiveTenant } = useTenant()
-  const [role, setRole] = useState<'super_admin' | 'club_admin' | null>(null)
+  const [role, setRole] = useState<Role>(null)
   const nav = useNavigate()
 
+  // Charger le rôle une seule fois à l’affichage du header
   useEffect(() => {
-    (async () => setRole(await getCurrentRole()))()
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await getCurrentRole()
+        if (!cancelled) setRole(r)
+      } catch {
+        if (!cancelled) setRole(null)
+      }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   const item = (to: string, label: string) => (
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `rounded-md px-3 py-1.5 text-sm ${isActive
-          ? 'bg-gray-900 text-white dark:bg-white dark:text-black'
-          : 'text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-zinc-800'}`
+        `rounded-md px-3 py-1.5 text-sm ${
+          isActive
+            ? 'bg-gray-900 text-white dark:bg-white dark:text-black'
+            : 'text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-zinc-800'
+        }`
       }
-    >{label}</NavLink>
+    >
+      {label}
+    </NavLink>
   )
 
   const stopImpersonation = async () => {
-    await clearActiveTenant()
+    try { await clearActiveTenant() } catch {}
     nav('/admin', { replace: true })
   }
 
   return (
     <header className="w-full border-b bg-white dark:bg-zinc-900 dark:border-zinc-800">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
-        <Link to="/" className="font-semibold text-gray-900 dark:text-gray-100">Sponsor Manager</Link>
+        <Link to="/" className="font-semibold text-gray-900 dark:text-gray-100">
+          Sponsor Manager
+        </Link>
         <nav className="flex items-center gap-2">
+          {/* Admin visible uniquement si super_admin */}
           {role === 'super_admin' && item('/admin', 'Admin')}
+
+          {/* Club visible si club_admin OU super_admin avec impersonation active */}
           {(role === 'club_admin' || (role === 'super_admin' && !!activeTenant)) && item('/clubs', 'Club')}
 
           {/* Indicateur d’impersonation + action */}
@@ -52,9 +74,13 @@ export default function TopNav() {
             </div>
           )}
 
-          <button onClick={toggle} className="rounded-md px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-zinc-800">
+          <button
+            onClick={toggle}
+            className="rounded-md px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-zinc-800"
+          >
             Thème : {theme === 'dark' ? 'Sombre' : 'Clair'}
           </button>
+
           {item('/logout', 'Déconnexion')}
         </nav>
       </div>
