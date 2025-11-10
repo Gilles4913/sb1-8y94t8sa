@@ -1,15 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+// src/pages/login.tsx
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import supabase from '@/lib/supabase'
-import LoginSafety from '@/components/auth/LoginSafety'
-
-async function getUserRole(): Promise<'super_admin' | 'club_admin' | null> {
-  const { data: me } = await supabase.auth.getUser()
-  const uid = me.user?.id
-  if (!uid) return null
-  const { data } = await supabase.from('app_users').select('role').eq('id', uid).single()
-  return (data?.role as any) ?? null
-}
 
 export default function LoginPage() {
   const nav = useNavigate()
@@ -17,91 +9,106 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [sessionEmail, setSessionEmail] = useState<string | null>(null)
-  const emailRef = useRef<HTMLInputElement | null>(null)
+  const clickedRef = useRef(false)
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getUser()
-      setSessionEmail(data.user?.email ?? null)
-      setTimeout(() => emailRef.current?.focus(), 0)
-    })()
-  }, [])
-
-  const hardClearSession = async () => {
-    try { await supabase.auth.signOut() } catch {}
-    try {
-      Object.keys(localStorage).forEach((k) => {
-        if (k.startsWith('sb-') || k === 'activeTenantId' || k === 'activeTenantName') localStorage.removeItem(k)
-      })
-    } catch {}
-    setSessionEmail(null); setEmail(''); setPassword(''); setMsg(null)
-    setTimeout(() => emailRef.current?.focus(), 0)
+  const handleClick = () => {
+    clickedRef.current = true
+    console.log('[LOGIN] Button clicked')
   }
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setMsg(null); setLoading(true)
+    console.log('[LOGIN] onSubmit fired')
+    setMsg(null)
+    setLoading(true)
     try {
-      await supabase.auth.signOut().catch(() => {})
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      console.log('[LOGIN] signIn data:', data, 'error:', error)
       if (error) throw error
 
-      localStorage.removeItem('activeTenantId')
-      localStorage.removeItem('activeTenantName')
+      const { data: sess } = await supabase.auth.getSession()
+      console.log('[LOGIN] session after:', sess?.session)
 
-      const role = await getUserRole()
-      if (role === 'super_admin') nav('/admin', { replace: true })
-      else nav('/clubs', { replace: true })
+      // route simple : si session OK → /admin sinon /login
+      if (sess?.session) {
+        nav('/admin', { replace: true })
+      } else {
+        setMsg('Session absente après connexion — vérifiez la config Auth/URL')
+      }
     } catch (e: any) {
+      console.error('[LOGIN] error:', e)
       const base = e?.message || 'Échec de la connexion'
       const code = e?.status || e?.code || ''
       setMsg(code ? `${base} (code: ${code})` : base)
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const clearForm = () => { setEmail(''); setPassword(''); setMsg(null); setTimeout(() => emailRef.current?.focus(), 0) }
-
   return (
-    <div className="mx-auto mt-10 w-full max-w-md rounded-lg border bg-white p-6 text-gray-900 dark:bg-zinc-950 dark:text-gray-100 dark:border-zinc-800">
-      <LoginSafety />
-      <h1 className="mb-4 text-xl font-semibold">Connexion</h1>
+    <div
+      className="rounded-lg border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      style={{ position: 'relative', zIndex: 10, pointerEvents: 'auto' }}
+    >
+      <h1 className="mb-4 text-xl font-semibold">Connexion (mode test)</h1>
 
-      {sessionEmail && (
-        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/20 dark:border-amber-900">
-          Vous êtes (ou étiez) connecté en tant que <b>{sessionEmail}</b>.
-          <div className="mt-2">
-            <button onClick={hardClearSession} className="rounded-md border px-3 py-1.5 text-sm hover:bg-amber-100 dark:hover:bg-zinc-800">
-              Changer de compte (déconnexion + nettoyage)
-            </button>
-          </div>
+      <div className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+        Si rien ne se passe quand vous cliquez, un overlay invisible bloque peut-être les clics.
+      </div>
+
+      {msg && (
+        <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/30 dark:border-red-900">
+          {msg}
         </div>
       )}
 
-      {msg && <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/30 dark:border-red-900">{msg}</div>}
-
       <form onSubmit={onSubmit} className="flex flex-col gap-3" autoComplete="off">
         <input
-          ref={emailRef}
-          className="rounded border px-3 py-2 text-sm dark:bg-zinc-900 dark:border-zinc-700 dark:text-gray-100"
-          type="email" placeholder="Email" inputMode="email" autoCapitalize="none"
-          autoCorrect="off" spellCheck={false} autoComplete="username"
-          value={email} onChange={(e) => setEmail(e.target.value)} required
+          className="rounded border px-3 py-2 text-sm dark:bg-zinc-800 dark:border-zinc-700 dark:text-gray-100"
+          type="email"
+          placeholder="Email"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          autoComplete="username"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          data-testid="email"
         />
+
         <input
-          className="rounded border px-3 py-2 text-sm dark:bg-zinc-900 dark:border-zinc-700 dark:text-gray-100"
-          type="password" placeholder="Mot de passe" autoComplete="current-password"
-          value={password} onChange={(e) => setPassword(e.target.value)} required
+          className="rounded border px-3 py-2 text-sm dark:bg-zinc-800 dark:border-zinc-700 dark:text-gray-100"
+          type="password"
+          placeholder="Mot de passe"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          data-testid="password"
         />
-        <div className="flex items-center gap-2">
-          <button className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-gray-200" type="submit" disabled={loading}>
-            {loading ? 'Connexion…' : 'Se connecter'}
-          </button>
-          <button className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-zinc-800" type="button" onClick={clearForm}>
-            Vider le formulaire
-          </button>
-        </div>
+
+        <button
+          className="rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+          type="submit"
+          disabled={loading}
+          onClick={handleClick}
+          data-testid="submit"
+          style={{ position: 'relative', zIndex: 20, pointerEvents: 'auto' }}
+        >
+          {loading ? 'Connexion…' : 'Se connecter'}
+        </button>
       </form>
+
+      <div className="mt-4 text-xs">
+        <div>Test clic enregistré : <b>{String(clickedRef.current)}</b></div>
+        <div>Éléments à vérifier :</div>
+        <ul className="list-inside list-disc">
+          <li>La console doit afficher “[LOGIN] Button clicked” puis “[LOGIN] onSubmit fired”.</li>
+          <li>Dans l’onglet Réseau, une requête doit partir vers <code>/auth/v1/token?grant_type=password</code>.</li>
+        </ul>
+      </div>
     </div>
   )
 }
