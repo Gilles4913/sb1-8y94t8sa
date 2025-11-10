@@ -1,21 +1,23 @@
 import { Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import supabase from '@/lib/supabase'
+import { getCurrentRole, isAuthenticated } from '@/lib/auth'
 
 export default function RequireSuperAdmin({ children }: { children: JSX.Element }) {
-  const [ok, setOk] = useState<boolean | null>(null)
+  const [state, setState] = useState<'checking' | 'ok' | 'to-login' | 'to-clubs'>('checking')
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.auth.getUser()
-      const uid = data.user?.id
-      if (!uid) { setOk(false); return }
-      const { data: row } = await supabase.from('app_users').select('role').eq('id', uid).single()
-      setOk(row?.role === 'super_admin')
+      const authed = await isAuthenticated()
+      if (!authed) { setState('to-login'); return }
+
+      const role = await getCurrentRole()
+      if (role === 'super_admin') setState('ok')
+      else setState('to-clubs') // 🔁 club_admin → jamais /login, on renvoie vers /clubs
     })()
   }, [])
 
-  if (ok === null) return <div className="p-6">Chargement…</div>
-  if (!ok) return <Navigate to="/login" replace />
+  if (state === 'checking') return <div className="p-6">Chargement…</div>
+  if (state === 'to-login')  return <Navigate to="/login" replace />
+  if (state === 'to-clubs')  return <Navigate to="/clubs" replace />
   return children
 }
