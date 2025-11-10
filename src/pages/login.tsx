@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
+import LoginSafety from '@/components/auth/LoginSafety'
+
+export default function LoginPage() {
+  // ...
+  return (
+    <div className="mx-auto mt-10 w-full max-w-md rounded-lg border bg-white p-6 dark:bg-zinc-950 dark:border-zinc-800">
+      <LoginSafety />  {/* ← purge immédiate, n’empêche pas le rendu */}
+      {/* ... le reste du formulaire ... */}
+    </div>
+  )
+}
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL!,
