@@ -1,3 +1,4 @@
+// src/router.tsx
 import { createBrowserRouter } from 'react-router-dom'
 
 // Layouts
@@ -12,6 +13,7 @@ import RequireActiveTenant from '@/guards/RequireActiveTenant'
 // Pages publiques
 import PublicHome from '@/pages'
 import LoginPage from '@/pages/login'
+import LogoutPage from '@/pages/logout'
 
 // Pages Admin
 import AdminDashboard from '@/pages/admin'
@@ -24,9 +26,6 @@ import ClubSponsorsPage from '@/pages/clubs/sponsors'
 import ClubCampaignsPage from '@/pages/clubs/campaigns'
 import ClubInvitationsPage from '@/pages/clubs/invitations'
 import ClubEmailTemplatesPage from '@/pages/clubs/templates'
-import LogoutPage from '@/pages/logout'
-// ...
-{ path: 'logout', element: <LogoutPage /> },
 
 // 404 simple
 function NotFound() {
@@ -41,10 +40,11 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <PublicHome /> },
       { path: 'login', element: <LoginPage /> },
+      { path: 'logout', element: <LogoutPage /> }, // ← route de déconnexion propre
     ],
   },
 
-  // Zone Super Admin
+  // Zone Super Admin (protégée)
   {
     path: '/admin',
     element: (
