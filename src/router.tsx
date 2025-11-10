@@ -40,11 +40,11 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <PublicHome /> },
       { path: 'login', element: <LoginPage /> },
-      { path: 'logout', element: <LogoutPage /> }, // ← route de déconnexion propre
+      { path: 'logout', element: <LogoutPage /> },
     ],
   },
 
-  // Zone Super Admin (protégée)
+  // Zone Super Admin
   {
     path: '/admin',
     element: (
