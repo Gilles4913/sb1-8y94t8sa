@@ -5,6 +5,16 @@ import { useTenant } from '@/contexts/TenantContext'
 export default function ClubLayout() {
   const { tenant } = useTenant()
 
+  if (!tenant) {
+    return (
+      <div className="p-6 text-red-600">
+        Aucun club actif.  
+        <br />
+        Retournez sur la liste des clubs depuis le mode Super-Admin.
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
       <TopNav />
@@ -12,7 +22,7 @@ export default function ClubLayout() {
       <div className="flex-1 flex flex-col">
         <div className="border-b bg-white shadow-sm">
           <div className="px-6 py-2 text-sm text-gray-500">
-            Environnement du club : <b>{tenant?.name}</b>
+            Environnement du club : <b>{tenant.name}</b>
           </div>
 
           <nav className="flex gap-6 px-6 py-3 text-sm border-t">
@@ -26,6 +36,7 @@ export default function ClubLayout() {
               Tableau de bord
             </NavLink>
 
+            {/* ⚡️ Menu Club complet toujours affiché */}
             <NavLink
               to="/clubs/sponsors"
               className={({ isActive }) =>
