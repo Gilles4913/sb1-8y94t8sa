@@ -26,10 +26,11 @@ export default function AdminClubsPage() {
     loadClubs()
   }, [])
 
-  const switchToClub = (club: Club) => {
-    setTenant({ id: club.id, name: club.name })
-    nav('/clubs')
-  }
+ const switchToClub = (club: Club) => {
+  console.log('🟢 switchToClub:', club)  // <--- pour vérifier dans la console
+  setTenant({ id: club.id, name: club.name })
+  nav('/clubs')
+}
 
   return (
     <div className="p-6">
