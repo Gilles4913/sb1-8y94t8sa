@@ -13,6 +13,7 @@ import RequireActiveTenant from '@/guards/RequireActiveTenant'
 import PublicHome from '@/pages'          // le fichier src/pages/index.tsx ci-dessus
 import LoginPage from '@/pages/login'
 import LogoutPage from '@/pages/logout'
+import DebugAuthPage from '@/pages/debug/auth'
 
 // Pages Admin
 import AdminDashboard from '@/pages/admin'
@@ -31,6 +32,8 @@ function NotFound() {
   return <div className="p-6">404 — Page introuvable</div>
 }
 
+
+
 export const router = createBrowserRouter([
   // Zone publique
   {
@@ -40,6 +43,7 @@ export const router = createBrowserRouter([
       { index: true, element: <PublicHome /> }, // bouton “Se connecter”
       { path: 'login', element: <LoginPage /> },
       { path: 'logout', element: <LogoutPage /> },
+      { path: 'debug/auth', element: <DebugAuthPage /> }, // ← TEMP
     ],
   },
 
