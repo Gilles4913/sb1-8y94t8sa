@@ -13,6 +13,7 @@ import RequireActiveTenant from '@/guards/RequireActiveTenant'
 import PublicHome from '@/pages'
 import LoginPage from '@/pages/login'
 import LogoutPage from '@/pages/logout'
+import LoginTester from '@/pages/debug/login-tester'
 
 // Pages Admin
 import AdminDashboard from '@/pages/admin'
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
       { index: true, element: <PublicHome /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'logout', element: <LogoutPage /> },
+      { path: 'debug/login', element: <LoginTester /> },
     ],
   },
   {
