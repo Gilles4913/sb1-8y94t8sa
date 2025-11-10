@@ -1,21 +1,27 @@
-// ...
-import ClubEmailTemplatesPage from '@/pages/clubs/templates'
-import ChooseClubPage from '@/pages/clubs/choose'   // ← AJOUT
+import { createBrowserRouter } from 'react-router-dom'
 
-// ...
-{
-  path: '/clubs',
-  element: (
-    <RequireActiveTenant>
-      <ClubLayout />
-    </RequireActiveTenant>
-  ),
-  children: [
-    { index: true, element: <ClubDashboard /> },
-    { path: 'sponsors', element: <ClubSponsorsPage /> },
-    { path: 'campaigns', element: <ClubCampaignsPage /> },
-    { path: 'invitations', element: <ClubInvitationsPage /> },
-    { path: 'templates', element: <ClubEmailTemplatesPage /> },
-    { path: 'choose', element: <ChooseClubPage /> }, // ← AJOUT
-  ],
-},
+// Layout public minimal que tu as déjà
+import PublicLayout from '@/components/layouts/PublicLayout'
+
+// Pages publiques
+import PublicHome from '@/pages'          // src/pages/index.tsx (bouton “Se connecter”)
+import LoginPage from '@/pages/login'
+import LogoutPage from '@/pages/logout'
+
+// 404 simple
+function NotFound() {
+  return <div className="p-6">404 — Page introuvable</div>
+}
+
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <PublicLayout />,
+    children: [
+      { index: true, element: <PublicHome /> },
+      { path: 'login', element: <LoginPage /> },
+      { path: 'logout', element: <LogoutPage /> },
+    ],
+  },
+  { path: '*', element: <NotFound /> },
+])
