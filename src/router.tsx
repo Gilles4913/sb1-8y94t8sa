@@ -1,26 +1,9 @@
 import { createBrowserRouter } from 'react-router-dom'
-
 import PublicLayout from '@/components/layouts/PublicLayout'
-import AdminLayout from '@/components/layouts/AdminLayout'
-import ClubLayout from '@/components/layouts/ClubLayout'
-
-import RequireSuperAdmin from '@/guards/RequireSuperAdmin'
-import RequireActiveTenant from '@/guards/RequireActiveTenant'
-
-import PublicHome from '@/pages'
-import LoginView from '@/pages/login'      // ← alias pour éviter toute collision
+import LoginPage from '@/pages/login'
 import LogoutPage from '@/pages/logout'
 
-import AdminDashboard from '@/pages/admin'
-import AdminClubsPage from '@/pages/admin/clubs'
-import ClubDetailPage from '@/pages/admin/clubs/[id]'
-
-import ClubDashboard from '@/pages/clubs'
-import ClubSponsorsPage from '@/pages/clubs/sponsors'
-import ClubCampaignsPage from '@/pages/clubs/campaigns'
-import ClubInvitationsPage from '@/pages/clubs/invitations'
-import ClubEmailTemplatesPage from '@/pages/clubs/templates'
-
+function Home() { return <div className="p-6">Bienvenue — veuillez vous connecter.</div> }
 function NotFound() { return <div className="p-6">404 — Page introuvable</div> }
 
 export const router = createBrowserRouter([
@@ -28,37 +11,9 @@ export const router = createBrowserRouter([
     path: '/',
     element: <PublicLayout />,
     children: [
-      { index: true, element: <PublicHome /> },
-      { path: 'login', element: <LoginView /> },  // ← alias utilisé ici
+      { index: true, element: <Home /> },
+      { path: 'login', element: <LoginPage /> },
       { path: 'logout', element: <LogoutPage /> },
-    ],
-  },
-  {
-    path: '/admin',
-    element: (
-      <RequireSuperAdmin>
-        <AdminLayout />
-      </RequireSuperAdmin>
-    ),
-    children: [
-      { index: true, element: <AdminDashboard /> },
-      { path: 'clubs', element: <AdminClubsPage /> },
-      { path: 'clubs/:id', element: <ClubDetailPage /> },
-    ],
-  },
-  {
-    path: '/clubs',
-    element: (
-      <RequireActiveTenant>
-        <ClubLayout />
-      </RequireActiveTenant>
-    ),
-    children: [
-      { index: true, element: <ClubDashboard /> },
-      { path: 'sponsors', element: <ClubSponsorsPage /> },
-      { path: 'campaigns', element: <ClubCampaignsPage /> },
-      { path: 'invitations', element: <ClubInvitationsPage /> },
-      { path: 'templates', element: <ClubEmailTemplatesPage /> },
     ],
   },
   { path: '*', element: <NotFound /> },
