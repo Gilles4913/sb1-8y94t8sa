@@ -1,59 +1,126 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import supabase from '@/lib/supabase'
 import { useTenant } from '@/contexts/TenantContext'
 
+type Option = { id: string; label: string }
+type Invitation = {
+  id: string
+  email: string | null
+  status: string | null
+  campaign_id: string
+  sponsor_id: string | null
+}
 
 export default function ClubInvitationsPage() {
-  const { activeTenant, loading } = useTenant()
-  const [rows, setRows] = useState<any[]>([])
-  const [err, setErr] = useState<string|null>(null)
-  const tenantId = activeTenant?.id
+  const { tenant } = useTenant()
+  const [campaigns, setCampaigns] = useState<Option[]>([])
+  const [sponsors, setSponsors] = useState<Option[]>([])
+  const [items, setItems] = useState<Invitation[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
 
-  useEffect(() => {
-    (async () => {
-      if (loading || !tenantId) return
-      setErr(null)
-      // on remonte via campaigns (tenant_id) -> invitations
-      const { data, error } = await supabase
-        .from('invitations')
-        .select('id,email,status,created_at,campaigns!inner(title,tenant_id)')
-        .eq('campaigns.tenant_id', tenantId)
-        .order('created_at', { ascending: false })
-      if (error) setErr(error.message)
-      else setRows(data || [])
-    })()
-  }, [loading, tenantId])
+  const [form, setForm] = useState<{ campaign_id?: string; sponsor_id?: string; email?: string }>({})
 
-  if (loading) return <div>Chargement…</div>
-  if (!tenantId) return <div>Aucun club actif</div>
+  const canSubmit = useMemo(() => !!form.campaign_id && (!!form.sponsor_id || !!form.email), [form])
+
+  const load = async () => {
+    if (!tenant) return
+    setLoading(true); setErr(null)
+    try {
+      const [{ data: cs }, { data: ss }, { data: invs }] = await Promise.all([
+        supabase.from('campaigns').select('id, title').eq('tenant_id', tenant.id).order('title'),
+        supabase.from('sponsors').select('id, company, email').eq('tenant_id', tenant.id).order('company'),
+        supabase.from('invitations').select('id, email, status, campaign_id, sponsor_id').in(
+          'campaign_id',
+          (await supabase.from('campaigns').select('id').eq('tenant_id', tenant.id)).data?.map(r => r.id) || []
+        ).order('id', { ascending: false }),
+      ])
+      setCampaigns((cs || []).map((r: any) => ({ id: r.id, label: r.title })))
+      setSponsors((ss || []).map((r: any) => ({ id: r.id, label: r.company + (r.email ? ` <${r.email}>` : '') })))
+      setItems(invs || [])
+    } catch (e: any) {
+      setErr(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [tenant])
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!tenant || !form.campaign_id) return
+    const sponsorEmail = sponsors.find(s => s.id === form.sponsor_id)?.label.match(/<(.+)>/)?.[1] || null
+    const payload = {
+      campaign_id: form.campaign_id!,
+      sponsor_id: form.sponsor_id || null,
+      email: form.email || sponsorEmail,
+      status: 'sent' as const,
+    }
+    const { error } = await supabase.from('invitations').insert(payload)
+    if (error) return alert(error.message)
+    setForm({})
+    load()
+  }
+
+  if (!tenant) return <div className="p-6 text-red-600">Aucun club actif.</div>
 
   return (
-    <div>
-      <h1 className="mb-3 text-2xl font-semibold">Invitations</h1>
-      {err && <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:border-red-900">{err}</div>}
-      <div className="rounded-lg border dark:border-zinc-700 overflow-auto">
-        <table className="w-full min-w-[820px]">
-          <thead className="bg-gray-50 dark:bg-zinc-800">
-            <tr>
-              <th className="p-3 text-left text-sm font-medium">Campagne</th>
-              <th className="p-3 text-left text-sm font-medium">Email</th>
-              <th className="p-3 text-left text-sm font-medium">Statut</th>
-              <th className="p-3 text-left text-sm font-medium">Envoyée le</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r: any) => (
-              <tr key={r.id} className="border-t dark:border-zinc-700">
-                <td className="p-3">{(r as any).campaigns?.title || '—'}</td>
-                <td className="p-3">{r.email}</td>
-                <td className="p-3">{r.status}</td>
-                <td className="p-3">{new Date(r.created_at).toLocaleString()}</td>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold">Invitations aux sponsors</h1>
+
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-3 rounded border bg-white p-4 shadow-sm md:grid-cols-4">
+        <select className="rounded border px-3 py-2 md:col-span-2" value={form.campaign_id || ''} onChange={e => setForm(f => ({ ...f, campaign_id: e.target.value || undefined }))}>
+          <option value="">— Choisir une campagne —</option>
+          {campaigns.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+
+        <select className="rounded border px-3 py-2" value={form.sponsor_id || ''} onChange={e => setForm(f => ({ ...f, sponsor_id: e.target.value || undefined }))}>
+          <option value="">— Choisir un sponsor —</option>
+          {sponsors.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+
+        <input className="rounded border px-3 py-2" placeholder="ou email direct"
+          value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value || undefined }))} />
+
+        <div className="md:col-span-4">
+          <button disabled={!canSubmit} className="rounded bg-gray-900 px-4 py-2 text-white hover:bg-black disabled:opacity-50">
+            Envoyer l’invitation (création)
+          </button>
+        </div>
+      </form>
+
+      {loading ? (
+        <div>Chargement…</div>
+      ) : err ? (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-red-700">{err}</div>
+      ) : (
+        <div className="overflow-auto rounded border bg-white shadow-sm">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-3 py-2 text-left">Email</th>
+                <th className="px-3 py-2 text-left">Campagne</th>
+                <th className="px-3 py-2 text-left">Sponsor</th>
+                <th className="px-3 py-2 text-center">Statut</th>
               </tr>
-            ))}
-            {!rows.length && <tr><td className="p-3" colSpan={4}>Aucune invitation</td></tr>}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {items.map((r) => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">{r.email}</td>
+                  <td className="px-3 py-2">{campaigns.find(c => c.id === r.campaign_id)?.label || r.campaign_id}</td>
+                  <td className="px-3 py-2">{sponsors.find(s => s.id === r.sponsor_id)?.label || '-'}</td>
+                  <td className="px-3 py-2 text-center">{r.status || '-'}</td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-500">Aucune invitation</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
