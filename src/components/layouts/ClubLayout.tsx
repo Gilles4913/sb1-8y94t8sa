@@ -2,15 +2,45 @@ import { Outlet, NavLink } from 'react-router-dom'
 import TopNav from '@/components/TopNav'
 import { useTenant } from '@/contexts/TenantContext'
 
+function TabLink({
+  to,
+  children,
+}: {
+  to: string
+  children: React.ReactNode
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={to === '/clubs'}
+      className={({ isActive }) =>
+        [
+          'px-3 py-2 text-sm rounded-md transition-colors',
+          'hover:text-blue-700 hover:bg-blue-50',
+          isActive ? 'font-semibold text-blue-800 bg-blue-100' : 'text-gray-700',
+        ].join(' ')
+      }
+    >
+      {children}
+    </NavLink>
+  )
+}
+
 export default function ClubLayout() {
   const { tenant } = useTenant()
 
   if (!tenant) {
     return (
-      <div className="p-6 text-red-600">
-        Aucun club actif.  
-        <br />
-        Retournez sur la liste des clubs depuis le mode Super-Admin.
+      <div className="min-h-screen bg-gray-50 text-gray-900">
+        <TopNav />
+        <main className="max-w-5xl mx-auto p-6">
+          <div className="rounded border border-amber-200 bg-amber-50 p-4">
+            <div className="font-semibold text-amber-800 mb-1">Aucun club actif</div>
+            <p className="text-sm text-amber-700">
+              Retournez sur la liste des clubs depuis l’espace Super-Admin pour sélectionner un club.
+            </p>
+          </div>
+        </main>
       </div>
     )
   }
@@ -20,70 +50,29 @@ export default function ClubLayout() {
       <TopNav />
 
       <div className="flex-1 flex flex-col">
-        <div className="border-b bg-white shadow-sm">
-          <div className="px-6 py-2 text-sm text-gray-500">
-            Environnement du club : <b>{tenant.name}</b>
+        {/* Bandeau contexte club */}
+        <div className="border-b bg-white">
+          <div className="max-w-6xl mx-auto px-6 py-2 text-sm text-gray-500">
+            Environnement du club : <b className="text-gray-800">{tenant.name}</b>
           </div>
 
-          <nav className="flex gap-6 px-6 py-3 text-sm border-t">
-            <NavLink
-              to="/clubs"
-              end
-              className={({ isActive }) =>
-                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
-              }
-            >
-              Tableau de bord
-            </NavLink>
-
-            {/* ⚡️ Menu Club complet toujours affiché */}
-            <NavLink
-              to="/clubs/sponsors"
-              className={({ isActive }) =>
-                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
-              }
-            >
-              Sponsors
-            </NavLink>
-
-            <NavLink
-              to="/clubs/campaigns"
-              className={({ isActive }) =>
-                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
-              }
-            >
-              Campagnes
-            </NavLink>
-
-            <NavLink
-              to="/clubs/invitations"
-              className={({ isActive }) =>
-                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
-              }
-            >
-              Invitations
-            </NavLink>
-
-            <NavLink to="/clubs/templates" className={({ isActive }) =>
-                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
-              }
-            >
-              Modèles e-mails
-            </NavLink>
-            <NavLink to="/clubs/analytics" className={({ isActive }) =>
-                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
-              }
-            >
-            <NavLink to="/clubs/settings" className={({ isActive }) =>
-                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
-              }
-            >
-
+          {/* Onglets Club */}
+          <nav className="max-w-6xl mx-auto px-6 py-3 flex flex-wrap gap-2">
+            <TabLink to="/clubs">Tableau de bord</TabLink>
+            <TabLink to="/clubs/sponsors">Sponsors</TabLink>
+            <TabLink to="/clubs/campaigns">Campagnes</TabLink>
+            <TabLink to="/clubs/invitations">Invitations</TabLink>
+            <TabLink to="/clubs/templates">Modèles e-mails</TabLink>
+            <TabLink to="/clubs/analytics">Analyse</TabLink>
+            <TabLink to="/clubs/settings">Réglages</TabLink>
           </nav>
         </div>
 
-        <main className="flex-1 p-6">
-          <Outlet />
+        {/* Contenu */}
+        <main className="flex-1">
+          <div className="max-w-6xl mx-auto p-6">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
