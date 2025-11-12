@@ -18,7 +18,6 @@ export default function AdminClubsPage() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
-  // Formulaire create/update
   const [editing, setEditing] = useState<Club | null>(null)
   const [form, setForm] = useState<Partial<Club>>({ name: '', email_contact: '' })
   const [saving, setSaving] = useState(false)
@@ -33,7 +32,6 @@ export default function AdminClubsPage() {
     setClubs(data || [])
     setLoading(false)
   }
-
   useEffect(() => { load() }, [])
 
   const switchTo = (c: Club) => {
@@ -41,7 +39,6 @@ export default function AdminClubsPage() {
     nav('/clubs')
   }
 
-  // Appel API manage.ts
   async function callManage(action: string, payload: any) {
     const token = (await supabase.auth.getSession()).data.session?.access_token
     const res = await fetch('/api/admin/tenants/manage', {
@@ -58,59 +55,34 @@ export default function AdminClubsPage() {
     e.preventDefault()
     setSaving(true); setErr(null)
     try {
-      if (editing) {
-        await callManage('update', { id: editing.id, ...form })
-      } else {
-        await callManage('create', { name: form.name, email_contact: form.email_contact })
-      }
-      setEditing(null)
-      setForm({ name: '', email_contact: '' })
+      if (editing) await callManage('update', { id: editing.id, ...form })
+      else await callManage('create', { name: form.name, email_contact: form.email_contact })
+      setEditing(null); setForm({ name: '', email_contact: '' })
       await load()
-    } catch (e: any) {
-      setErr(e.message)
-    } finally {
-      setSaving(false)
-    }
+    } catch (e: any) { setErr(e.message) } finally { setSaving(false) }
   }
 
   const suspendClub = async (c: Club) => {
     if (!confirm(`Suspendre « ${c.name} » ?`)) return
-    try {
-      await callManage('suspend', { id: c.id })
-      load()
-    } catch (e: any) {
-      alert(e.message)
-    }
+    try { await callManage('suspend', { id: c.id }); load() } catch (e: any) { alert(e.message) }
   }
-
   const activateClub = async (c: Club) => {
-    try {
-      await callManage('activate', { id: c.id })
-      load()
-    } catch (e: any) {
-      alert(e.message)
-    }
+    try { await callManage('activate', { id: c.id }); load() } catch (e: any) { alert(e.message) }
   }
-
   const deleteClub = async (c: Club) => {
     if (!confirm(`Supprimer définitivement « ${c.name} » et toutes ses données ?`)) return
-    try {
-      await callManage('delete', { id: c.id })
-      load()
-    } catch (e: any) {
-      alert(e.message)
-    }
+    try { await callManage('delete', { id: c.id }); load() } catch (e: any) { alert(e.message) }
   }
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Clubs</h1>
 
-      <form onSubmit={onSubmit} className="space-y-3 rounded border bg-white p-4 shadow-sm">
+      <form onSubmit={onSubmit} className="card p-4 space-y-3">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <input className="rounded border px-3 py-2" placeholder="Nom *" required
+          <input className="rounded border px-3 py-2 dark:bg-slate-900 dark:border-slate-700" placeholder="Nom *" required
             value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <input className="rounded border px-3 py-2" placeholder="Email de contact"
+          <input className="rounded border px-3 py-2 dark:bg-slate-900 dark:border-slate-700" placeholder="Email de contact"
             value={form.email_contact || ''} onChange={e => setForm(f => ({ ...f, email_contact: e.target.value }))} />
         </div>
         <div className="flex items-center gap-2">
@@ -118,7 +90,7 @@ export default function AdminClubsPage() {
             {editing ? 'Mettre à jour' : 'Créer le club'}
           </button>
           {editing && (
-            <button type="button" className="rounded border px-3 py-2" onClick={() => { setEditing(null); setForm({ name: '' }) }}>
+            <button type="button" className="rounded border px-3 py-2 dark:border-slate-700" onClick={() => { setEditing(null); setForm({ name: '' }) }}>
               Annuler
             </button>
           )}
@@ -129,9 +101,9 @@ export default function AdminClubsPage() {
       {loading ? (
         <div>Chargement…</div>
       ) : (
-        <div className="overflow-auto rounded border bg-white shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-100">
+        <div className="overflow-auto card">
+          <table className="table">
+            <thead className="thead">
               <tr>
                 <th className="px-3 py-2 text-left">Nom</th>
                 <th className="px-3 py-2 text-left">Email</th>
@@ -141,19 +113,20 @@ export default function AdminClubsPage() {
             </thead>
             <tbody>
               {clubs.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50">
+                <tr key={c.id} className="trow-hover">
                   <td className="px-3 py-2">{c.name}</td>
                   <td className="px-3 py-2">{c.email_contact || '-'}</td>
                   <td className="px-3 py-2 text-center">
-                    <span className={`rounded px-2 py-0.5 text-xs ${c.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <span className={c.status === 'active' ? 'badge-active' : 'badge-inactive'}>
                       {c.status === 'active' ? 'Actif' : 'Suspendu'}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-center space-x-2">
-                    <button className="rounded border px-2 py-1 text-xs" onClick={() => { setEditing(c); setForm({ name: c.name, email_contact: c.email_contact || '' }) }}>
+                    <button className="rounded border px-2 py-1 text-xs dark:border-slate-700"
+                      onClick={() => { setEditing(c); setForm({ name: c.name, email_contact: c.email_contact || '' }) }}>
                       Éditer
                     </button>
-                    <button className="rounded border px-2 py-1 text-xs" onClick={() => switchTo(c)}>
+                    <button className="rounded border px-2 py-1 text-xs dark:border-slate-700" onClick={() => switchTo(c)}>
                       Basculer
                     </button>
                     {c.status === 'active' ? (
