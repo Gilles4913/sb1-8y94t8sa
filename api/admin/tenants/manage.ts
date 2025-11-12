@@ -1,107 +1,123 @@
 // /api/admin/tenants/manage.ts
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
-const URL = process.env.SUPABASE_URL!
-const ANON = process.env.SUPABASE_ANON_KEY!
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const url = process.env.SUPABASE_URL!
+const service = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-type Action = 'suspend' | 'restore' | 'delete_hard'
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ ok:false, message:'Method Not Allowed' })
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-    if (!token) return res.status(401).json({ ok:false, message:'Missing token' })
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' })
 
-    const { tenant_id, action } = req.body as { tenant_id: string; action: Action }
-    if (!tenant_id || !action) return res.status(400).json({ ok:false, message:'tenant_id and action required' })
+    // 1) Auth requise (utilisateur connecté côté front)
+    const auth = req.headers.authorization || ''
+    if (!auth.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthorized' })
 
-    const sbUser = createClient(URL, ANON, { global: { headers: { Authorization: `Bearer ${token}` } } })
-    const { data: me } = await sbUser.auth.getUser()
-    if (!me?.user?.id) return res.status(401).json({ ok:false, message:'Invalid session' })
+    // 2) Client service role
+    const admin = createClient(url, service)
 
-    const { data: roleRow } = await sbUser.from('app_users').select('role').eq('id', me.user.id).single()
-    if (roleRow?.role !== 'super_admin') return res.status(403).json({ ok:false, message:'Forbidden: super_admin only' })
+    const { action, payload } = req.body || {}
+    if (!action) return res.status(400).json({ error: 'missing_action' })
 
-    const sbAdmin = createClient(URL, SERVICE)
+    // ————————————————————————————————
+    // CREATE
+    if (action === 'create') {
+      // payload: { name, email_contact?, primary_color?, secondary_color? }
+      const { name, email_contact, primary_color, secondary_color } = payload || {}
+      if (!name) return res.status(400).json({ error: 'missing_name' })
 
-    if (action === 'suspend') {
-      const { error } = await sbAdmin.from('tenants').update({ status: 'inactive' }).eq('id', tenant_id)
-      if (error) return res.status(400).json({ ok:false, message: error.message })
-      return res.status(200).json({ ok:true, status:'inactive' })
+      const { data, error } = await admin
+        .from('tenants')
+        .insert({
+          name,
+          email_contact: email_contact || null,
+          primary_color: primary_color || null,
+          secondary_color: secondary_color || null,
+          status: 'active',
+        })
+        .select('id, name, email_contact, status')
+        .single()
+
+      if (error) return res.status(400).json({ error: error.message })
+      return res.status(200).json({ ok: true, tenant: data })
     }
 
-    if (action === 'restore') {
-      const { error } = await sbAdmin.from('tenants').update({ status: 'active' }).eq('id', tenant_id)
-      if (error) return res.status(400).json({ ok:false, message: error.message })
-      return res.status(200).json({ ok:true, status:'active' })
+    // ————————————————————————————————
+    // UPDATE (édition champs simples)
+    if (action === 'update') {
+      // payload: { id, name?, email_contact?, primary_color?, secondary_color? }
+      const { id, ...rest } = payload || {}
+      if (!id) return res.status(400).json({ error: 'missing_id' })
+
+      const { data, error } = await admin
+        .from('tenants')
+        .update({
+          name: rest.name ?? undefined,
+          email_contact: rest.email_contact ?? undefined,
+          primary_color: rest.primary_color ?? undefined,
+          secondary_color: rest.secondary_color ?? undefined,
+        })
+        .eq('id', id)
+        .select('id, name, email_contact, status')
+        .single()
+
+      if (error) return res.status(400).json({ error: error.message })
+      return res.status(200).json({ ok: true, tenant: data })
     }
 
-    if (action === 'delete_hard') {
-      // 1) Récupérer les users (app_users) de ce tenant pour supprimer aussi auth.users
-      const { data: users, error: uErr } = await sbAdmin
-        .from('app_users')
-        .select('id,email')
-        .eq('tenant_id', tenant_id)
-      if (uErr) return res.status(400).json({ ok:false, message: uErr.message })
+    // ————————————————————————————————
+    // SUSPEND / ACTIVATE
+    if (action === 'suspend' || action === 'activate') {
+      const { id } = payload || {}
+      if (!id) return res.status(400).json({ error: 'missing_id' })
+      const status = action === 'suspend' ? 'inactive' : 'active'
 
-      // 2) Supprimer les données liées (ordre de sécurité si pas de ON DELETE CASCADE)
-      // Pledges -> invitations -> email_events -> scenarios -> campaigns -> sponsors -> email_templates (tenant scope)
-      // NB: ajuste selon tes noms exacts de tables et FKs
-      const deletes = []
+      const { data, error } = await admin
+        .from('tenants')
+        .update({ status })
+        .eq('id', id)
+        .select('id, name, email_contact, status')
+        .single()
 
-      // a) Email templates du tenant (si tu clones des templates par tenant)
-      deletes.push(sbAdmin.from('email_templates').delete().eq('tenant_id', tenant_id))
-      deletes.push(sbAdmin.from('email_template_versions').delete().in('template_id',
-        (await sbAdmin.from('email_templates').select('id').eq('tenant_id', tenant_id)).data?.map(r=>r.id) || []
-      )) // safe si vide
+      if (error) return res.status(400).json({ error: error.message })
+      return res.status(200).json({ ok: true, tenant: data })
+    }
 
-      // b) Scenarios (campagnes)
-      const { data: campaignIds } = await sbAdmin.from('campaigns').select('id').eq('tenant_id', tenant_id)
-      const cids = (campaignIds || []).map(r=>r.id)
-      if (cids.length) {
-        deletes.push(sbAdmin.from('pledges').delete().in('campaign_id', cids))
-        deletes.push(sbAdmin.from('invitations').delete().in('campaign_id', cids))
-        deletes.push(sbAdmin.from('email_events').delete().in('campaign_id', cids))
-        deletes.push(sbAdmin.from('scenarios').delete().in('campaign_id', cids))
-        deletes.push(sbAdmin.from('campaigns').delete().in('id', cids))
-      }
+    // ————————————————————————————————
+    // DELETE (cascade logique)
+    if (action === 'delete') {
+      // payload: { id }
+      const { id } = payload || {}
+      if (!id) return res.status(400).json({ error: 'missing_id' })
 
-      // c) Sponsors
-      deletes.push(sbAdmin.from('sponsors').delete().eq('tenant_id', tenant_id))
+      // Supprime d’abord les entités liées (ordre pour éviter contraintes FK)
+      // (adapte si certaines tables n’existent pas chez toi)
+      const tables = [
+        'email_templates',
+        'email_events',
+        'pledges',
+        'invitations',
+        'campaigns',
+        'sponsors',
+        'app_users', // utilisateurs club
+      ]
 
-      // d) Logs annexes éventuels
-      deletes.push(sbAdmin.from('email_test_logs').delete().eq('tenant_id', tenant_id))
-
-      // e) app_users (on les supprime après auth.users)
-      //   -> on les retirera après suppression des comptes Auth
-
-      // Exécuter les deletes (séquentiel pour récupérer les erreurs)
-      for (const p of deletes) {
-        const { error } = await p
-        if (error) return res.status(400).json({ ok:false, message:`Delete failed: ${error.message}` })
-      }
-
-      // 3) Supprimer les comptes Auth (puis nettoyer app_users)
-      for (const u of (users || [])) {
-        try {
-          await sbAdmin.auth.admin.deleteUser(u.id)
-        } catch (e:any) {
-          // si l'user n'existe plus côté Auth, on continue
+      for (const t of tables) {
+        const { error } = await admin.from(t).delete().eq('tenant_id', id)
+        if (error && error.code !== 'PGRST116') { // ignore "no rows"
+          return res.status(400).json({ error: `delete_${t}: ${error.message}` })
         }
       }
-      const { error: delAppUsersErr } = await sbAdmin.from('app_users').delete().eq('tenant_id', tenant_id)
-      if (delAppUsersErr) return res.status(400).json({ ok:false, message: delAppUsersErr.message })
 
-      // 4) Supprimer le tenant
-      const { error: delTenantErr } = await sbAdmin.from('tenants').delete().eq('id', tenant_id)
-      if (delTenantErr) return res.status(400).json({ ok:false, message: delTenantErr.message })
+      // Enfin supprime le tenant
+      const { error: delErr } = await admin.from('tenants').delete().eq('id', id)
+      if (delErr) return res.status(400).json({ error: delErr.message })
 
-      return res.status(200).json({ ok:true, deleted:true })
+      return res.status(200).json({ ok: true })
     }
 
-    return res.status(400).json({ ok:false, message:'Unknown action' })
-  } catch (e:any) {
-    return res.status(500).json({ ok:false, message: e?.message || 'Server error' })
+    return res.status(400).json({ error: 'unknown_action' })
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message || 'server_error' })
   }
 }
