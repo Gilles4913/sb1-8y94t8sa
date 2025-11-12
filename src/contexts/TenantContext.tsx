@@ -1,4 +1,3 @@
-// src/contexts/TenantContext.tsx
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import supabase from '@/lib/supabase'
 
@@ -18,16 +17,18 @@ const TenantContext = createContext<Ctx>({
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [tenant, setTenantState] = useState<Tenant | null>(null)
 
+  // 1) Au premier chargement, ne PAS créer de tenant par défaut.
   useEffect(() => {
     const id = localStorage.getItem('activeTenantId')
     const name = localStorage.getItem('activeTenantName')
     if (id && name) setTenantState({ id, name })
+    else setTenantState(null)
   }, [])
 
+  // 2) Si on se déconnecte → nettoyage forcé
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
       if (!session) {
-        // logout → on nettoie
         localStorage.removeItem('activeTenantId')
         localStorage.removeItem('activeTenantName')
         setTenantState(null)
@@ -41,7 +42,6 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('activeTenantName', t.name)
     setTenantState(t)
   }
-
   const clearTenant = () => {
     localStorage.removeItem('activeTenantId')
     localStorage.removeItem('activeTenantName')
