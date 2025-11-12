@@ -1,5 +1,7 @@
+// src/components/layouts/AdminLayout.tsx
 import { Outlet, NavLink } from 'react-router-dom'
 import TopNav from '@/components/TopNav'
+import ImpersonationBanner from '@/components/ImpersonationBanner'
 
 function Tab({ to, children }: { to: string; children: React.ReactNode }) {
   return (
@@ -24,6 +26,7 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <TopNav />
+      <ImpersonationBanner />
 
       <div className="border-b bg-white dark:bg-slate-900 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-6 py-2 text-sm text-gray-500 dark:text-slate-400">
