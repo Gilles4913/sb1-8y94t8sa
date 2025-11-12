@@ -1,70 +1,55 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+// src/contexts/TenantContext.tsx
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import supabase from '@/lib/supabase'
 
-type Tenant = { id: string; name: string } | null
-
-interface TenantContextValue {
-  tenant: Tenant
-  setTenant: (tenant: Tenant) => void
+type Tenant = { id: string; name: string }
+type Ctx = {
+  tenant: Tenant | null
+  setTenant: (t: Tenant) => void
   clearTenant: () => void
 }
 
-const TenantContext = createContext<TenantContextValue>({
+const TenantContext = createContext<Ctx>({
   tenant: null,
   setTenant: () => {},
   clearTenant: () => {},
 })
 
 export function TenantProvider({ children }: { children: React.ReactNode }) {
-  const [tenant, setTenantState] = useState<Tenant>(() => {
-    // Récupération initiale dès le montage
+  const [tenant, setTenantState] = useState<Tenant | null>(null)
+
+  useEffect(() => {
     const id = localStorage.getItem('activeTenantId')
     const name = localStorage.getItem('activeTenantName')
-    return id ? { id, name: name || 'Club' } : null
-  })
+    if (id && name) setTenantState({ id, name })
+  }, [])
 
-  // ---- SET TENANT ----
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      if (!session) {
+        // logout → on nettoie
+        localStorage.removeItem('activeTenantId')
+        localStorage.removeItem('activeTenantName')
+        setTenantState(null)
+      }
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [])
+
   const setTenant = (t: Tenant) => {
-    if (t) {
-      console.log('✅ setTenant:', t)
-      localStorage.setItem('activeTenantId', t.id)
-      localStorage.setItem('activeTenantName', t.name)
-      setTenantState(t)
-    } else {
-      clearTenant()
-    }
+    localStorage.setItem('activeTenantId', t.id)
+    localStorage.setItem('activeTenantName', t.name)
+    setTenantState(t)
   }
 
-  // ---- CLEAR TENANT ----
   const clearTenant = () => {
-    console.log('🚫 clearTenant()')
     localStorage.removeItem('activeTenantId')
     localStorage.removeItem('activeTenantName')
     setTenantState(null)
   }
 
-  // ---- RESTAURE AU DÉMARRAGE ----
-  useEffect(() => {
-    const id = localStorage.getItem('activeTenantId')
-    const name = localStorage.getItem('activeTenantName')
-    if (id) setTenantState({ id, name: name || 'Club' })
-  }, [])
-
-  // ---- SUPABASE AUTH EVENTS ----
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('🔄 Auth event:', event, session?.user?.email)
-      // ⚠️ Ne pas effacer le tenant sauf déconnexion réelle
-      if (event === 'SIGNED_OUT' || !session) clearTenant()
-    })
-    return () => sub.subscription.unsubscribe()
-  }, [])
-
-  return (
-    <TenantContext.Provider value={{ tenant, setTenant, clearTenant }}>
-      {children}
-    </TenantContext.Provider>
-  )
+  const value = useMemo(() => ({ tenant, setTenant, clearTenant }), [tenant])
+  return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
 }
 
 export const useTenant = () => useContext(TenantContext)
