@@ -26,6 +26,7 @@ import ClubDashboard from '@/pages/clubs'
 import ClubSponsorsPage from '@/pages/clubs/sponsors'
 import ClubCampaignsPage from '@/pages/clubs/campaigns'
 import ClubInvitationsPage from '@/pages/clubs/invitations'
+import ClubPledgesPage from '@/pages/clubs/pledges'
 import ClubEmailTemplatesPage from '@/pages/clubs/templates'
 import ClubAnalyticsPage from '@/pages/clubs/analytics'
 import ClubSettingsPage from '@/pages/clubs/settings'
@@ -88,6 +89,7 @@ export const router = createBrowserRouter([
       { path: 'sponsors', element: <ClubSponsorsPage /> },     // CRUD sponsors
       { path: 'campaigns', element: <ClubCampaignsPage /> },   // CRUD campagnes
       { path: 'invitations', element: <ClubInvitationsPage /> }, // invitations
+      { path: 'promesses', element: <ClubPledgesPage /> }, // Promesses
       { path: 'templates', element: <ClubEmailTemplatesPage /> }, // modèles e-mails
       { path: 'analytics', element: <ClubAnalyticsPage /> },   // graphiques + IA
       { path: 'settings', element: <ClubSettingsPage /> },     // réglages club
