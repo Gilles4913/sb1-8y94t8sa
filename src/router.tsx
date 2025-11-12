@@ -19,6 +19,8 @@ import ClubSponsorsPage from '@/pages/clubs/sponsors'
 import ClubCampaignsPage from '@/pages/clubs/campaigns'
 import ClubInvitationsPage from '@/pages/clubs/invitations'
 import ClubEmailTemplatesPage from '@/pages/clubs/templates'
+import ClubSettingsPage from '@/pages/clubs/settings'
+import ClubAnalyticsPage from '@/pages/clubs/analytics'
 
 function NotFound() {
   return <div className="p-6 text-red-600">404 — Page introuvable</div>
@@ -59,6 +61,8 @@ export const router = createBrowserRouter([
       { path: 'campaigns', element: <ClubCampaignsPage /> },
       { path: 'invitations', element: <ClubInvitationsPage /> },
       { path: 'templates', element: <ClubEmailTemplatesPage /> },
+      { path: 'settings', element: <ClubSettingsPage /> },   // 👈
+      { path: 'analytics', element: <ClubAnalyticsPage /> },
     ],
   },
   { path: '*', element: <NotFound /> },
