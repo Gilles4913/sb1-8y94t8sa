@@ -64,14 +64,21 @@ export default function ClubLayout() {
               Invitations
             </NavLink>
 
-            <NavLink
-              to="/clubs/templates"
-              className={({ isActive }) =>
+            <NavLink to="/clubs/templates" className={({ isActive }) =>
                 `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
               }
             >
               Modèles e-mails
             </NavLink>
+            <NavLink to="/clubs/analytics" className={({ isActive }) =>
+                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
+              }
+            >
+            <NavLink to="/clubs/settings" className={({ isActive }) =>
+                `hover:text-blue-600 ${isActive ? 'font-semibold text-blue-700' : ''}`
+              }
+            >
+
           </nav>
         </div>
 
