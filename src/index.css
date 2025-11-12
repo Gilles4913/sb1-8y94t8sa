@@ -1,3 +1,35 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Fond global qui respecte le thème */
+html, body, #root { height: 100%; }
+
+body {
+  @apply bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+}
+
+/* Petite util “carte” que tu peux réutiliser partout */
+.card {
+  @apply rounded border bg-white shadow-sm
+         dark:bg-slate-900 dark:border-slate-800;
+}
+
+/* Tables & headers compatibles dark */
+.table {
+  @apply min-w-full text-sm;
+}
+.thead {
+  @apply bg-gray-100 dark:bg-slate-800/60;
+}
+.trow-hover:hover {
+  @apply bg-gray-50 dark:bg-slate-800/40;
+}
+.badge-active {
+  @apply rounded px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700
+         dark:bg-emerald-900/40 dark:text-emerald-300;
+}
+.badge-inactive {
+  @apply rounded px-2 py-0.5 text-xs bg-amber-100 text-amber-700
+         dark:bg-amber-900/40 dark:text-amber-300;
+}
